@@ -1,0 +1,12 @@
+pandas
+numpy
+scikit-learn
+joblib
+matplotlib
+shap
+streamlit
+pytest
+xgboost
+anthropic
+scipy
+statsmodels

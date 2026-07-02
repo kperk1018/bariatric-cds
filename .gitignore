@@ -1,0 +1,14 @@
+# PHI — never commit the CSV
+data/*
+!data/.gitkeep
+
+# Artifacts: model weights are safe to commit (no PHI); exclude only raw data files
+artifacts/*
+!artifacts/.gitkeep
+!artifacts/*.joblib
+!artifacts/*.png
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
