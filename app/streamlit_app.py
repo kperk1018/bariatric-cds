@@ -411,6 +411,35 @@ with tab_traj:
     cols[1].markdown("Amber -- weak signal (R2 0.20-0.40)")
     cols[2].markdown("Red -- unreliable, no point prediction (R2 < 0.20)")
 
+    # Honest-accuracy caveats from out-of-fold validation (scripts/validate_models.py)
+    cascade_years = [
+        yr for yr in range(2, 7)
+        if traj["TBWL"][yr].get("mode") == "cascade" and traj["TBWL"][yr]["point"] is not None
+    ]
+    if cascade_years:
+        st.warning(
+            "**Preop-mode accuracy caveat.** Predictions for years 2+ are cascaded on "
+            "*predicted* earlier years, and out-of-fold validation shows accuracy in this mode "
+            "is substantially lower than the tier R2 suggests (e.g. TBWL yr2: R2 0.18 cascaded "
+            "vs 0.52 when the actual yr1 value is known; yr4 cascaded R2 is near zero). "
+            "The uncertainty bands shown for cascaded years are calibrated to actual "
+            "out-of-fold errors — treat the band, not the point, as the prediction. "
+            "Entering actual follow-up measurements in the sidebar restores full model accuracy "
+            "for the following year."
+        )
+    if patient["Surgery_Type"] == "Bypass":
+        st.caption(
+            "Note: out-of-fold validation shows the model **under-predicts TBWL% for Bypass "
+            "patients by ~4 pp** on average at years 2-4. The true trajectory is likely toward "
+            "the upper half of the displayed band."
+        )
+    if any(traj["TBWL"][yr]["point"] is not None for yr in [5, 6]):
+        st.caption(
+            "Note: patients with year 5-6 follow-up were systematically lighter at baseline than "
+            "the full cohort (attrition bias, |SMD| up to 0.39) — late-year estimates may not "
+            "generalize to heavier patients."
+        )
+
     # BMI milestone summary
     st.divider()
     st.subheader("BMI Milestone Prediction")
@@ -484,12 +513,23 @@ with tab_traj:
         rows = []
         for yr in range(1, 7):
             d = traj[outcome][yr]
+            mode = d.get("mode")
+            eff_r2 = d.get("cascade_r2")
             rows.append({
                 "Year": yr,
                 "Tier": d["tier"].upper(),
                 "Point": f"{d['point']:.1f}%" if d["point"] is not None else "--",
                 "95% CI": f"[{d['lo']:.1f}, {d['hi']:.1f}]" if d["point"] is not None else "--",
-                "R2": d["r2"],
+                "R2 (S5)": d["r2"],
+                "Mode": mode if mode else "--",
+                "Effective R2": (
+                    f"{eff_r2:.2f}" if eff_r2 is not None
+                    else (f"{d['r2']:.2f}" if mode == "conditioned" else "--")
+                ),
+                "Band": {
+                    "calibrated_oof": "calibrated (OOF)",
+                    "s5_rmse": "1.96 x RMSE",
+                }.get(d.get("band_source"), "--"),
                 "Note": d["message"],
             })
         st.write(f"**{outcome}%**")

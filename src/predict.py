@@ -10,7 +10,12 @@ Contract (stable — do not change without updating callers and CLAUDE.md):
         }
 
     - point=None, lo=None, hi=None for RED years — never fabricate a number.
-    - Uncertainty band: ±1.96 × S5 RMSE (approximate 95% interval).
+    - Uncertainty band: empirical OOF cascade residual quantiles (2.5/97.5%)
+      from artifacts/calibration.joblib when predicting in cascade mode (lag is
+      itself a prediction) and calibration exists; otherwise ±1.96 × S5 RMSE.
+      Each year reports "mode" ("cascade"|"conditioned"), "band_source"
+      ("calibrated_oof"|"s5_rmse") and "cascade_r2" (OOF cascade R², None when
+      running under conditioned/training-equivalent inputs).
     - Models were trained with lagged prior-year TBWL/FML as additional features.
       At inference time the tool cascades: yr1 is predicted from baseline only;
       yr2 uses the predicted yr1; yr3 uses predicted yr1+yr2; etc.
@@ -36,6 +41,19 @@ from src.reliability import gate
 from src.preprocess import encode_patient, get_numeric_cols
 
 _MODEL_CACHE: dict = {}
+_CALIBRATION_CACHE: list = []  # [None] = tried & missing; [dict] = loaded
+
+
+def _load_calibration() -> dict | None:
+    """Load OOF cascade calibration (scripts/validate_models.py output), if present.
+
+    Separate from _load_artifact: calibration is optional — its absence falls
+    back to the ±1.96×RMSE(S5) band rather than raising.
+    """
+    if not _CALIBRATION_CACHE:
+        path = ARTIFACTS / "calibration.joblib"
+        _CALIBRATION_CACHE.append(joblib.load(path) if path.exists() else None)
+    return _CALIBRATION_CACHE[0]
 
 _NUMERIC_COLS = get_numeric_cols(BASELINE_FEATURES)
 
@@ -130,12 +148,44 @@ def predict_trajectory(
 
             point = float(model.predict(x)[0])
             rmse = MODEL_PERFORMANCE[outcome][year]["rmse"]
-            half = 1.96 * rmse
+
+            # Band + mode. Year 1 (no lag) and years whose immediate prior-year
+            # value is an actual measurement run under the same conditions the
+            # models were trained/validated in ("conditioned") — S5 RMSE band is
+            # honest there. Otherwise the lag is itself a prediction ("cascade");
+            # OOF validation showed S5 bands under-cover in that mode, so use
+            # empirical OOF cascade residual quantiles when available.
+            lag_is_actual = (year == 1) or ((year - 1) in actual_map)
+            mode = "conditioned" if lag_is_actual else "cascade"
+            calib = _load_calibration()
+            cal_entry = None
+            if mode == "cascade" and calib is not None:
+                entry = calib["per_year"].get((outcome, year))
+                if entry and entry["n_oof"] >= calib["min_calib"]:
+                    cal_entry = entry
+
+            if cal_entry is not None:
+                lo = point + cal_entry["resid_q025"]
+                hi = point + cal_entry["resid_q975"]
+                band_source = "calibrated_oof"
+                cascade_r2 = cal_entry["cascade_r2"]
+            else:
+                half = 1.96 * rmse
+                lo, hi = point - half, point + half
+                band_source = "s5_rmse"
+                cascade_r2 = (
+                    calib["per_year"][(outcome, year)]["cascade_r2"]
+                    if mode == "cascade" and calib is not None
+                    and (outcome, year) in calib["per_year"] else None
+                )
 
             result[outcome][year] = {
                 "point": round(point, 2),
-                "lo": round(point - half, 2),
-                "hi": round(point + half, 2),
+                "lo": round(lo, 2),
+                "hi": round(hi, 2),
+                "mode": mode,
+                "band_source": band_source,
+                "cascade_r2": cascade_r2,
                 **gate_info,
             }
 

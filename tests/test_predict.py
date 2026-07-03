@@ -2,7 +2,6 @@
 
 All tests mock joblib.load so no real CSV or trained artifacts are needed.
 """
-import types
 import unittest
 from unittest.mock import MagicMock, patch
 import numpy as np
@@ -35,8 +34,12 @@ def _make_dummy_scaler():
 
 class TestPredictTrajectory(unittest.TestCase):
 
-    def _run_predict(self, patient=None):
-        """Helper: run predict_trajectory with mocked artifacts."""
+    def _run_predict(self, patient=None, calibration=None, postop_tbwl=None):
+        """Helper: run predict_trajectory with mocked artifacts.
+
+        calibration=None mocks the no-calibration fallback (±1.96×RMSE bands);
+        pass a dict to exercise the calibrated-band path.
+        """
         if patient is None:
             patient = {f"f{i}": 1.0 for i in range(5)}
             patient.update({"Sex": "Female", "Race": "White", "Surgery_Type": "RYGB"})
@@ -58,9 +61,10 @@ class TestPredictTrajectory(unittest.TestCase):
         import src.predict as pred_module
         pred_module._MODEL_CACHE.clear()
 
-        with patch("src.predict._load_artifact", side_effect=_fake_load):
+        with patch("src.predict._load_artifact", side_effect=_fake_load), \
+             patch("src.predict._load_calibration", return_value=calibration):
             from src.predict import predict_trajectory
-            return predict_trajectory(patient)
+            return predict_trajectory(patient, postop_tbwl=postop_tbwl)
 
     def test_returns_both_outcomes_and_six_years(self):
         result = self._run_predict()
@@ -99,6 +103,51 @@ class TestPredictTrajectory(unittest.TestCase):
                     required_keys.issubset(result[outcome][yr].keys()),
                     f"Gate keys missing for {outcome} yr{yr}",
                 )
+
+    def test_calibrated_band_used_in_cascade_mode(self):
+        # yr2+ without postop data = cascade mode -> empirical OOF quantiles
+        calib = {
+            "min_calib": 30,
+            "per_year": {
+                ("TBWL", 2): {
+                    "n_oof": 399, "cascade_r2": 0.179,
+                    "resid_q025": -20.0, "resid_q975": 15.0,
+                },
+            },
+        }
+        result = self._run_predict(calibration=calib)
+        d = result["TBWL"][2]
+        self.assertEqual(d["mode"], "cascade")
+        self.assertEqual(d["band_source"], "calibrated_oof")
+        self.assertAlmostEqual(d["lo"], d["point"] - 20.0, places=1)
+        self.assertAlmostEqual(d["hi"], d["point"] + 15.0, places=1)
+        self.assertEqual(d["cascade_r2"], 0.179)
+
+    def test_calibration_skipped_when_n_oof_too_small(self):
+        calib = {
+            "min_calib": 30,
+            "per_year": {
+                ("TBWL", 2): {
+                    "n_oof": 12, "cascade_r2": 0.1,
+                    "resid_q025": -20.0, "resid_q975": 15.0,
+                },
+            },
+        }
+        result = self._run_predict(calibration=calib)
+        d = result["TBWL"][2]
+        self.assertEqual(d["band_source"], "s5_rmse")
+        rmse = MODEL_PERFORMANCE["TBWL"][2]["rmse"]
+        self.assertAlmostEqual(d["hi"] - d["point"], 1.96 * rmse, places=1)
+
+    def test_conditioned_mode_with_actual_postop_lag(self):
+        # yr1 actual supplied -> yr2 runs under training-equivalent conditions
+        result = self._run_predict(postop_tbwl={1: 22.5})
+        self.assertEqual(result["TBWL"][1]["mode"], "conditioned")  # yr1 has no lag
+        self.assertEqual(result["TBWL"][2]["mode"], "conditioned")
+        self.assertEqual(result["TBWL"][2]["band_source"], "s5_rmse")
+        self.assertIsNone(result["TBWL"][2]["cascade_r2"])
+        # yr3's lag is the *predicted* yr2 -> back to cascade
+        self.assertEqual(result["TBWL"][3]["mode"], "cascade")
 
     def test_missing_artifact_raises_file_not_found(self):
         from unittest.mock import patch
