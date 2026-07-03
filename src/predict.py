@@ -55,6 +55,23 @@ def _load_calibration() -> dict | None:
         _CALIBRATION_CACHE.append(joblib.load(path) if path.exists() else None)
     return _CALIBRATION_CACHE[0]
 
+
+def _get_adopted_direct(outcome: str, year: int, calib: dict | None) -> dict | None:
+    """Return the direct-model calibration entry iff the direct model is adopted.
+
+    Adoption rule (from scripts/train_direct_models.py OOF comparison): a direct
+    preop model is used only where its OOF R² beat the recursive cascade's.
+    Where it didn't (e.g. TBWL yr5, FML yr3), the cascade path is kept.
+    """
+    if calib is None or "direct_per_year" not in calib:
+        return None
+    entry = calib["direct_per_year"].get((outcome, year))
+    if entry is None:
+        return None
+    cascade_entry = calib.get("per_year", {}).get((outcome, year))
+    cascade_r2 = cascade_entry["cascade_r2"] if cascade_entry else 0.0
+    return entry if entry["direct_r2"] > cascade_r2 else None
+
 _NUMERIC_COLS = get_numeric_cols(BASELINE_FEATURES)
 
 _SVR_OUTCOMES = {
@@ -113,62 +130,98 @@ def predict_trajectory(
                     outcome_cascade[col_map[year]] = actual_map[year]
                 continue
 
-            meta = _load_artifact(f"{outcome}_yr{year}_meta.joblib")
-            model = _load_artifact(f"{outcome}_yr{year}_model.joblib")
+            # Mode. Year 1 (no lag) and years whose immediate prior-year value
+            # is an actual measurement run under the same conditions the lag
+            # models were trained/validated in ("conditioned"). Otherwise the
+            # lag would itself be a prediction — OOF validation showed that
+            # recursive cascading collapses accuracy there, so prefer a DIRECT
+            # preop model (trained without lags) when one exists that beat the
+            # cascade out-of-fold ("direct"); else fall back to the cascade.
+            lag_is_actual = (year == 1) or ((year - 1) in actual_map)
+            calib = _load_calibration()
+            direct_entry = None
+            if not lag_is_actual:
+                direct_entry = _get_adopted_direct(outcome, year, calib)
+            mode = ("conditioned" if lag_is_actual
+                    else ("direct" if direct_entry is not None else "cascade"))
 
-            # Build patient dict with lagged features injected
-            lagged_cols = meta.get("lagged_cols", [])
-            patient_with_lags = dict(patient)
-            for lag_col in lagged_cols:
-                if lag_col in outcome_cascade:
-                    patient_with_lags[lag_col] = outcome_cascade[lag_col]
-                else:
-                    # Missing lag — imputer will handle (median substitution)
-                    patient_with_lags[lag_col] = float("nan")
+            if mode == "direct":
+                dmeta = _load_artifact(f"{outcome}_yr{year}_direct_meta.joblib")
+                dmodel = _load_artifact(f"{outcome}_yr{year}_direct_model.joblib")
+                # Missing expanded features become NaN → median-imputed
+                p_direct = {c: patient.get(c, float("nan"))
+                            for c in dmeta["feature_cols"]}
+                x = encode_patient(p_direct, dmeta["columns"])
+                num_idx = [dmeta["columns"].index(c) for c in dmeta["num_encoded"]]
+                if num_idx:
+                    x[:, num_idx] = dmeta["imputer"].transform(x[:, num_idx])
+                if dmeta.get("scaler") is not None:
+                    x = dmeta["scaler"].transform(x)
+                point = float(dmodel.predict(x)[0])
+            else:
+                meta = _load_artifact(f"{outcome}_yr{year}_meta.joblib")
+                model = _load_artifact(f"{outcome}_yr{year}_model.joblib")
 
-            # Encode and align to training column order
-            x = encode_patient(patient_with_lags, meta["columns"])
+                # Build patient dict with lagged features injected
+                lagged_cols = meta.get("lagged_cols", [])
+                patient_with_lags = dict(patient)
+                for lag_col in lagged_cols:
+                    if lag_col in outcome_cascade:
+                        patient_with_lags[lag_col] = outcome_cascade[lag_col]
+                    else:
+                        # Missing lag — imputer will handle (median substitution)
+                        patient_with_lags[lag_col] = float("nan")
 
-            # Apply saved imputer (transform only — never fit at inference)
-            all_numeric = _NUMERIC_COLS + lagged_cols
-            num_col_indices = [
-                meta["columns"].index(c)
-                for c in meta["columns"]
-                if c in all_numeric
-            ]
-            if num_col_indices:
-                x[:, num_col_indices] = meta["imputer"].transform(
-                    x[:, num_col_indices]
-                )
+                # Encode and align to training column order
+                x = encode_patient(patient_with_lags, meta["columns"])
 
-            # Scale for SVR models
-            if (outcome, year) in _SVR_OUTCOMES:
-                scaler = _load_artifact(f"{outcome}_yr{year}_scaler.joblib")
-                x = scaler.transform(x)
+                # Apply saved imputer (transform only — never fit at inference)
+                all_numeric = _NUMERIC_COLS + lagged_cols
+                num_col_indices = [
+                    meta["columns"].index(c)
+                    for c in meta["columns"]
+                    if c in all_numeric
+                ]
+                if num_col_indices:
+                    x[:, num_col_indices] = meta["imputer"].transform(
+                        x[:, num_col_indices]
+                    )
 
-            point = float(model.predict(x)[0])
+                # Scale for SVR models
+                if (outcome, year) in _SVR_OUTCOMES:
+                    scaler = _load_artifact(f"{outcome}_yr{year}_scaler.joblib")
+                    x = scaler.transform(x)
+
+                point = float(model.predict(x)[0])
+
             rmse = MODEL_PERFORMANCE[outcome][year]["rmse"]
 
-            # Band + mode. Year 1 (no lag) and years whose immediate prior-year
-            # value is an actual measurement run under the same conditions the
-            # models were trained/validated in ("conditioned") — S5 RMSE band is
-            # honest there. Otherwise the lag is itself a prediction ("cascade");
-            # OOF validation showed S5 bands under-cover in that mode, so use
-            # empirical OOF cascade residual quantiles when available.
-            lag_is_actual = (year == 1) or ((year - 1) in actual_map)
-            mode = "conditioned" if lag_is_actual else "cascade"
-            calib = _load_calibration()
+            # Band: empirical OOF residual quantiles for preop modes (they
+            # absorb real deployment error incl. bias); ±1.96×RMSE(S5) for
+            # conditioned years, where S5 validation conditions actually hold.
             cal_entry = None
-            if mode == "cascade" and calib is not None:
+            if mode == "direct" and direct_entry["n_oof"] >= calib["min_calib"]:
+                cal_entry = {
+                    "q025": direct_entry["resid_q025"],
+                    "q975": direct_entry["resid_q975"],
+                    "r2": direct_entry["direct_r2"],
+                    "source": "direct_oof",
+                }
+            elif mode == "cascade" and calib is not None:
                 entry = calib["per_year"].get((outcome, year))
                 if entry and entry["n_oof"] >= calib["min_calib"]:
-                    cal_entry = entry
+                    cal_entry = {
+                        "q025": entry["resid_q025"],
+                        "q975": entry["resid_q975"],
+                        "r2": entry["cascade_r2"],
+                        "source": "calibrated_oof",
+                    }
 
             if cal_entry is not None:
-                lo = point + cal_entry["resid_q025"]
-                hi = point + cal_entry["resid_q975"]
-                band_source = "calibrated_oof"
-                cascade_r2 = cal_entry["cascade_r2"]
+                lo = point + cal_entry["q025"]
+                hi = point + cal_entry["q975"]
+                band_source = cal_entry["source"]
+                cascade_r2 = cal_entry["r2"]
             else:
                 half = 1.96 * rmse
                 lo, hi = point - half, point + half

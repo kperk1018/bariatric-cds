@@ -72,3 +72,26 @@ One line per modeling choice. This is what makes the work defensible + publishab
   yr N = yr N-1 has RMSE 5.4-7.1 pp (TBWL yrs 2-4) vs cascade RMSE 10.5-11.9 — reinforces
   that follow-up measurements dominate baseline features for later-year accuracy, hence the
   follow-up mode in the app is the recommended usage from yr1 onwards.
+- 2026-07-03  Direct preop models (scripts/train_direct_models.py): replaced the recursive
+  cascade in preop mode with DIRECT models (train yr N straight from preop features —
+  standard remedy for multi-step forecast error compounding). Menu: {15 baseline features,
+  +35 expanded preop features} × {RF, HistGradientBoosting, Ridge}, same OOF folds (seed 42),
+  winner-take-all per (outcome, year) with adoption only where direct OOF R² beat cascade.
+  Adopted: TBWL yr2 0.259 (Fexp+RF; was 0.179), yr3 0.168 (Fexp+RF; was 0.117), yr4 0.199
+  (F15+Ridge; was -0.022); FML yr2 0.251 (Fexp+RF; was 0.181), yr4 0.102 (Fexp+RF; was
+  -0.232). Rejected (cascade kept): TBWL yr5 (direct -0.171 < -0.157), FML yr3 (0.060 <
+  0.064). Model-selection optimism over the 6-config menu is mild and accepted; nested CV
+  deemed overkill at this N.
+- 2026-07-03  Expanded preop feature set (35 cols, verified in CSV, coverage ≥40%): 14 labs
+  (glucose, albumin, protein, insulin, HbA1c, chol, HDL, LDL, TG, TSH, AST, ALT, ALP, CRP),
+  8 comorbidity/history flags (OSA, DM, HTN, HLD, Depression, GERD, Smoker, CPAP), priors/
+  mobility/habitus, psych-behavioral scores (BES, ACE, Epworth, IWQoL), Preop_Visits, UGI
+  findings. Excluded for leakage: LOS, Operation_Time, Follow_up_months, Revision_Conversion,
+  Hepatomegaly (intraop). Excluded for sparsity (<40%): CHQ, PHQ-9, Exercise, Calories/wk.
+  Missing values median-imputed (keep_empty_features=True for all-NaN folds); blank optional
+  UI inputs likewise.
+- 2026-07-03  predict.py preop routing: mode "direct" (direct model + OOF-calibrated band)
+  when adopted per above; "cascade" fallback otherwise; "conditioned" (lag model + S5 band)
+  when the immediate prior-year actual is supplied. Direct predictions also feed the cascade
+  lag for non-adopted later years (e.g. TBWL yr5 lag = direct yr4 prediction). S5 tiers and
+  red-year refusals unchanged.

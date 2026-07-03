@@ -25,6 +25,21 @@ def _make_dummy_model():
     return m
 
 
+def _make_dummy_direct_meta(n_features: int = 5):
+    from sklearn.impute import SimpleImputer
+    cols = [f"f{i}" for i in range(n_features)]
+    imp = SimpleImputer(strategy="median").fit([[0] * n_features])
+    return {
+        "columns": cols,
+        "imputer": imp,
+        "num_encoded": cols,
+        "scaler": None,
+        "feature_cols": cols,
+        "estimator": "RF",
+        "n_train": 100,
+    }
+
+
 def _make_dummy_scaler():
     from sklearn.preprocessing import StandardScaler
     sc = StandardScaler()
@@ -50,6 +65,8 @@ class TestPredictTrajectory(unittest.TestCase):
 
         def _fake_load(path):
             name = str(path)
+            if "direct_meta" in name:
+                return _make_dummy_direct_meta()
             if "meta" in name:
                 return dummy_meta
             if "scaler" in name:
@@ -148,6 +165,54 @@ class TestPredictTrajectory(unittest.TestCase):
         self.assertIsNone(result["TBWL"][2]["cascade_r2"])
         # yr3's lag is the *predicted* yr2 -> back to cascade
         self.assertEqual(result["TBWL"][3]["mode"], "cascade")
+
+    def test_direct_model_adopted_when_it_beat_cascade_oof(self):
+        calib = {
+            "min_calib": 30,
+            "per_year": {
+                ("TBWL", 2): {
+                    "n_oof": 399, "cascade_r2": 0.179,
+                    "resid_q025": -20.0, "resid_q975": 15.0,
+                },
+            },
+            "direct_per_year": {
+                ("TBWL", 2): {
+                    "n_oof": 399, "direct_r2": 0.259, "direct_rmse": 9.99,
+                    "resid_q025": -18.0, "resid_q975": 14.0,
+                    "config": "Fexp+RF",
+                },
+            },
+        }
+        result = self._run_predict(calibration=calib)
+        d = result["TBWL"][2]
+        self.assertEqual(d["mode"], "direct")
+        self.assertEqual(d["band_source"], "direct_oof")
+        self.assertAlmostEqual(d["lo"], d["point"] - 18.0, places=1)
+        self.assertAlmostEqual(d["hi"], d["point"] + 14.0, places=1)
+        self.assertEqual(d["cascade_r2"], 0.259)
+
+    def test_direct_model_rejected_when_cascade_was_better(self):
+        # e.g. TBWL yr5 / FML yr3: direct did NOT beat cascade OOF -> keep cascade
+        calib = {
+            "min_calib": 30,
+            "per_year": {
+                ("TBWL", 2): {
+                    "n_oof": 399, "cascade_r2": 0.179,
+                    "resid_q025": -20.0, "resid_q975": 15.0,
+                },
+            },
+            "direct_per_year": {
+                ("TBWL", 2): {
+                    "n_oof": 399, "direct_r2": 0.150, "direct_rmse": 11.0,
+                    "resid_q025": -22.0, "resid_q975": 16.0,
+                    "config": "F15+RF",
+                },
+            },
+        }
+        result = self._run_predict(calibration=calib)
+        d = result["TBWL"][2]
+        self.assertEqual(d["mode"], "cascade")
+        self.assertEqual(d["band_source"], "calibrated_oof")
 
     def test_missing_artifact_raises_file_not_found(self):
         from unittest.mock import patch

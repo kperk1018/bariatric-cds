@@ -230,10 +230,43 @@ with st.sidebar:
 
     st.divider()
     comorbidities = st.multiselect(
-        "Comorbidities (for reference panel)",
+        "Comorbidities",
         list(COMORBIDITY_REMISSION.keys()),
         default=[],
+        help="Used by the prediction models (years 2-3) and the remission reference panel. "
+             "Leave empty if unknown.",
     )
+
+    with st.expander("Optional preop labs & scores (improves preop accuracy)"):
+        st.caption(
+            "The preop models for years 2-3 were trained with these. "
+            "Leave blank if unavailable — blanks are median-imputed."
+        )
+        lab_hba1c   = st.number_input("HbA1c (%)",            min_value=3.5,  max_value=15.0,   value=None, step=0.1,  key="lab_hba1c")
+        lab_glucose = st.number_input("Glucose (mg/dL)",      min_value=40.0, max_value=500.0,  value=None, step=1.0,  key="lab_glucose")
+        lab_insulin = st.number_input("Insulin (uIU/mL)",     min_value=0.0,  max_value=300.0,  value=None, step=0.1,  key="lab_insulin")
+        lab_tg      = st.number_input("Triglycerides (mg/dL)",min_value=20.0, max_value=1500.0, value=None, step=1.0,  key="lab_tg")
+        lab_hdl     = st.number_input("HDL (mg/dL)",          min_value=10.0, max_value=150.0,  value=None, step=1.0,  key="lab_hdl")
+        lab_crp     = st.number_input("CRP (mg/dL)",          min_value=0.0,  max_value=50.0,   value=None, step=0.1,  key="lab_crp")
+        lab_alt     = st.number_input("ALT (U/L)",            min_value=1.0,  max_value=500.0,  value=None, step=1.0,  key="lab_alt")
+        score_bes   = st.number_input("BES score (binge eating, 0-46)", min_value=0.0, max_value=46.0,  value=None, step=1.0, key="score_bes")
+        score_iwqol = st.number_input("IWQoL score",          min_value=0.0,  max_value=155.0,  value=None, step=1.0,  key="score_iwqol")
+        score_epw   = st.number_input("Epworth score (0-24)", min_value=0.0,  max_value=24.0,   value=None, step=1.0,  key="score_epw")
+        preop_visits = st.number_input("Preop clinic visits", min_value=0.0,  max_value=40.0,   value=None, step=1.0,  key="preop_visits")
+
+    # map optional inputs to raw CSV column names (some carry stray spaces)
+    OPTIONAL_FEATURES = {
+        "Preop_HbA1c": lab_hba1c, "Preop_Glucose": lab_glucose,
+        "Preop_Insulin": lab_insulin, "Preop_TG ": lab_tg,
+        "Preop_HDL": lab_hdl, "Preop_CRP": lab_crp, "Preop_ALT": lab_alt,
+        "BES_score": score_bes, "IWQoL_score ": score_iwqol,
+        "Epworth_score": score_epw, "Preop_Visits": preop_visits,
+    }
+    COMORB_TO_COL = {
+        "Type 2 Diabetes (DM)": "DM", "Hypertension (HTN)": "HTN",
+        "Hyperlipidemia (HLD)": "Hyperlipidemia", "Sleep Apnea (OSA)": "OSA",
+        "GERD": "GERD", "Depression": "Depression",
+    }
 
     with st.expander("Actual postop data (optional)"):
         st.caption(
@@ -285,6 +318,12 @@ patient = {
     "Initial_FFM": initial_ffm, "Time_to_Surgery": time_to_surg,
     "Surgery_Type": surgery_type, "Preop_BMI": preop_bmi, "Preop_TBWL": preop_tbwl,
 }
+# optional labs/scores: only pass what was entered (blanks stay median-imputed)
+patient.update({col: val for col, val in OPTIONAL_FEATURES.items() if val is not None})
+# comorbidity flags: an empty selection means "unknown", not "none"
+if comorbidities:
+    patient.update({col: (1.0 if label in comorbidities else 0.0)
+                    for label, col in COMORB_TO_COL.items()})
 
 if compute_btn:
     with st.spinner("Computing trajectory..."):
@@ -411,21 +450,23 @@ with tab_traj:
     cols[1].markdown("Amber -- weak signal (R2 0.20-0.40)")
     cols[2].markdown("Red -- unreliable, no point prediction (R2 < 0.20)")
 
-    # Honest-accuracy caveats from out-of-fold validation (scripts/validate_models.py)
-    cascade_years = [
+    # Honest-accuracy caveats from out-of-fold validation (scripts/validate_models.py
+    # and scripts/train_direct_models.py)
+    preop_years = [
         yr for yr in range(2, 7)
-        if traj["TBWL"][yr].get("mode") == "cascade" and traj["TBWL"][yr]["point"] is not None
+        if traj["TBWL"][yr].get("mode") in ("cascade", "direct")
+        and traj["TBWL"][yr]["point"] is not None
     ]
-    if cascade_years:
+    if preop_years:
         st.warning(
-            "**Preop-mode accuracy caveat.** Predictions for years 2+ are cascaded on "
-            "*predicted* earlier years, and out-of-fold validation shows accuracy in this mode "
-            "is substantially lower than the tier R2 suggests (e.g. TBWL yr2: R2 0.18 cascaded "
-            "vs 0.52 when the actual yr1 value is known; yr4 cascaded R2 is near zero). "
-            "The uncertainty bands shown for cascaded years are calibrated to actual "
+            "**Preop-mode accuracy caveat.** Without actual follow-up data, years 2+ use "
+            "direct preop models (trained on baseline features, labs and behavioral scores; "
+            "out-of-fold R2 ~0.17-0.26) — substantially weaker than the tier R2, which only "
+            "applies when the prior year's actual value is known (e.g. TBWL yr2: R2 0.52 "
+            "with actual yr1 vs 0.26 preop). Uncertainty bands are calibrated to actual "
             "out-of-fold errors — treat the band, not the point, as the prediction. "
-            "Entering actual follow-up measurements in the sidebar restores full model accuracy "
-            "for the following year."
+            "Entering follow-up measurements in the sidebar restores full model accuracy "
+            "for the following year, and entering preop labs/scores sharpens years 2-3."
         )
     if patient["Surgery_Type"] == "Bypass":
         st.caption(
@@ -527,7 +568,8 @@ with tab_traj:
                     else (f"{d['r2']:.2f}" if mode == "conditioned" else "--")
                 ),
                 "Band": {
-                    "calibrated_oof": "calibrated (OOF)",
+                    "calibrated_oof": "calibrated (OOF cascade)",
+                    "direct_oof": "calibrated (OOF direct)",
                     "s5_rmse": "1.96 x RMSE",
                 }.get(d.get("band_source"), "--"),
                 "Note": d["message"],
