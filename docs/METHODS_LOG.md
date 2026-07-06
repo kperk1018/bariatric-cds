@@ -95,3 +95,14 @@ One line per modeling choice. This is what makes the work defensible + publishab
   when the immediate prior-year actual is supplied. Direct predictions also feed the cascade
   lag for non-adopted later years (e.g. TBWL yr5 lag = direct yr4 prediction). S5 tiers and
   red-year refusals unchanged.
+- 2026-07-06  Data integrity: added a fail-loud duplicate-ID guard to src/data_load.py
+  (_dup_id_guard, default strict_unique_ids=True). Audit found 802 rows but only 786
+  unique IDs — 6 IDs (740, 1130, 349, 469, 187, 1) carry 16 extra rows that are
+  cartesian-product artifacts of an upstream merge on colliding IDs (e.g. ID 740 has
+  Initial_BMI 44.70 AND an impossible-for-bariatric 19.53, each cross-joined with two
+  outcome record sets). These would contaminate CV (same ID across folds), clustering,
+  and validation. load() now raises unless bypassed with strict_unique_ids=False; this
+  intentionally blocks reproduce_models.py / run_clustering.py / validate_models.py until
+  the merge is fixed upstream or aligned with Ioanna's dedup policy (manuscript 1A↔1B).
+  Streamlit app degrades gracefully (cohort features fall back, no crash). pytest
+  unaffected (45 pass / 2 skip; tests mock the data).
