@@ -1,28 +1,36 @@
-"""Load the patient CSV with a light de-identification guard."""
+"""Load the patient CSV: column cleaning, de-id guard, and keep-first dedup."""
 import re
+import warnings
 import pandas as pd
 from src.config import DATA, ID_COL
 from src.preprocess import clean_columns
 
 
-def load(path=DATA, strict_unique_ids: bool = True) -> pd.DataFrame:
+def load(path=DATA, dedup: bool = True) -> pd.DataFrame:
     """Load the patient CSV.
 
     Column names are standardized to the shared 1A/1B cleaning convention
     (see :func:`src.preprocess.clean_column_name`) immediately on load, so every
     downstream consumer reads identical feature names to Ioanna's pipeline.
 
+    Duplicate patient IDs are removed with ``keep="first"`` to match 1A
+    (Ioanna's ``drop_duplicates(subset=["ID"], keep="first")``). This dataset has
+    6 IDs carrying cartesian-product duplicate rows from an upstream merge on
+    colliding IDs; keep-first empirically retains the plausible-BMI row (it drops
+    the impossible Initial_BMI 19.53 for ID 740). The count is reported via a
+    warning, never silently swallowed.
+
     Args:
         path: CSV path.
-        strict_unique_ids: if True (default), raise on duplicate patient IDs. Set
-            False only to deliberately bypass the guard with intent (e.g. inspecting
-            the raw, un-deduplicated file); never for training/clustering.
+        dedup: if True (default), apply keep-first dedup. Set False only to inspect
+            the raw, un-deduplicated file (e.g. auditing the duplicates themselves).
     """
     df = pd.read_csv(path)
     df = clean_columns(df)
     _deid_guard(df)
-    if strict_unique_ids:
-        _dup_id_guard(df)
+    n_dupes = _count_duplicate_ids(df)  # internal check — reports, does not raise
+    if n_dupes and dedup:
+        df = df.drop_duplicates(subset=[ID_COL], keep="first").reset_index(drop=True)
     return df
 
 
@@ -34,29 +42,26 @@ def _deid_guard(df: pd.DataFrame) -> None:
         raise ValueError(f"Possible PHI columns present, refuse to proceed: {bad}")
 
 
-def _dup_id_guard(df: pd.DataFrame) -> None:
-    """Fail loudly if any patient ID repeats.
+def _count_duplicate_ids(df: pd.DataFrame) -> int:
+    """Warn about duplicate patient IDs and return the count of extra rows.
 
-    Duplicate IDs in this dataset are cartesian-product artifacts of an upstream
-    merge on colliding IDs (e.g. ID 740 carries two different demographic profiles —
-    Initial_BMI 44.70 and an impossible-for-bariatric 19.53 — each cross-joined with
-    two outcome record sets = 4 rows). Left unchecked they contaminate cross-
-    validation (same ID across folds), clustering, and validation. We refuse to
-    proceed rather than silently dedup, so the merge is fixed upstream / aligned with
-    Ioanna's pipeline. Bypass only with load(..., strict_unique_ids=False).
+    Retained as an internal integrity check (per the 1A-alignment decision we match
+    Ioanna's keep-first dedup rather than fail-loud, so this reports instead of
+    raising). Duplicates here are cartesian-product artifacts of an upstream merge
+    on colliding IDs.
     """
     if ID_COL not in df.columns:
         raise ValueError(f"Expected id column '{ID_COL}' not found; cannot verify uniqueness.")
     counts = df[ID_COL].value_counts()
     dupes = counts[counts > 1]
-    if len(dupes) > 0:
-        n_extra = int(dupes.sum() - len(dupes))
-        detail = ", ".join(f"{idx}(x{int(n)})" for idx, n in dupes.items())
-        raise ValueError(
-            f"Duplicate patient IDs found: {len(dupes)} id(s), {n_extra} extra row(s). "
-            f"These are likely cartesian-product artifacts of an upstream merge on "
-            f"colliding IDs and would corrupt CV/clustering/validation. Fix the merge "
-            f"upstream (or align with Ioanna's dedup) before training. "
-            f"Offending IDs: {detail}. "
-            f"To inspect the raw file deliberately, call load(..., strict_unique_ids=False)."
-        )
+    if len(dupes) == 0:
+        return 0
+    n_extra = int(dupes.sum() - len(dupes))
+    detail = ", ".join(f"{idx}(x{int(n)})" for idx, n in dupes.items())
+    warnings.warn(
+        f"Duplicate patient IDs: {len(dupes)} id(s), {n_extra} extra row(s) "
+        f"[{detail}] — removed via keep='first' (matches 1A). These are "
+        f"cartesian-product merge artifacts.",
+        stacklevel=2,
+    )
+    return n_extra

@@ -132,3 +132,13 @@ One line per modeling choice. This is what makes the work defensible + publishab
   SVR is deterministic (no random_state); no train_test_split or UMAP/t-SNE exist in 1B yet.
   The config comment mandates any future UMAP/t-SNE (added during 1A clustering convergence) use
   config.SEED, operationalizing "random_state=42 everywhere." No behavior change (values identical).
+- 2026-07-09  Dedup switched to keep-first (1A alignment). Confirmed her "-v2" CSV is BYTE-IDENTICAL
+  to ours (same 802 rows, 786 unique IDs, same 6 cartesian-duplicate IDs incl. the impossible
+  Initial_BMI 19.53) — so v2 is not a cleaned source; 1A relies entirely on runtime
+  drop_duplicates(subset=["ID"], keep="first"). We now match that in data_load.load() (was
+  fail-loud). Empirically keep-first retains the plausible-BMI row for all 6 IDs (the 19.53 is
+  dropped), though it can keep the sparser-follow-up copy. The duplicate count is still reported
+  via warning (internal check retained, no longer raises). load(dedup=False) preserves the raw
+  802 rows for auditing. Also verified: our cleaned column names match her file exactly (185/185),
+  and our MODEL_PERFORMANCE gating equals her Supplementary Table S5 per-year best model (R²/RMSE
+  to 3 dp) — independent validation of the reliability tiers.
