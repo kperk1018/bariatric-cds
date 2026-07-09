@@ -51,14 +51,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from src.config import (
     DATA, ARTIFACTS, BASELINE_FEATURES, TBWL_BY_YEAR, FML_BY_YEAR,
-    LAGGED_TBWL_BY_YEAR, LAGGED_FML_BY_YEAR, MODEL_PERFORMANCE,
+    LAGGED_TBWL_BY_YEAR, LAGGED_FML_BY_YEAR, MODEL_PERFORMANCE, SEED,
 )
 from src.data_load import load
 from src.preprocess import build_feature_matrix, get_numeric_cols, CATEGORICAL_COLS
 from src.reliability import tier
 from reproduce_models import _make_estimator, _needs_scaling  # scripts/ on path
 
-SEED = 42
 N_FOLDS = 5
 MIN_TRAIN = 20     # skip a fold-year if the training subset is smaller
 MIN_CALIB = 30     # minimum OOF residuals to trust empirical quantiles

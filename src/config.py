@@ -10,6 +10,13 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "patients-data5b-may11data-merge-edited.csv"
 ARTIFACTS = ROOT / "artifacts"
 
+# --- Reproducibility: single source of truth for the seed ---
+# Every stochastic estimator, split, and dimensionality reducer (incl. any future
+# UMAP/t-SNE added during clustering convergence with 1A) MUST use this. Import it
+# rather than re-declaring a local 42, so "random_state=42 everywhere" is guaranteed.
+SEED = 42
+RANDOM_STATE = SEED
+
 # --- Clinical constant ---
 PREOP_TBWL_THRESHOLD = 10.5  # % ; below this = actionable risk flag
 

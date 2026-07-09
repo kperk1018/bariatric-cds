@@ -125,3 +125,10 @@ One line per modeling choice. This is what makes the work defensible + publishab
   as a TEMP bypass (dedup parked). NOTE: clustering feature set/population is still 1B's own
   (actual TBWL yrs1-3, complete-case) — convergence onto her predicted-trajectory/UMAP approach is
   parked pending her intermediate CSVs. Added tests/test_phenotype.py.
+- 2026-07-08  Reproducibility: centralized the seed into config.SEED (=42) / RANDOM_STATE as the
+  single source of truth; phenotype.py, reproduce_models.py, train_direct_models.py,
+  validate_models.py now import it instead of re-declaring SEED=42. Audit confirmed every
+  stochastic estimator (RF, GB, XGBoost, HGB, Ridge, KMeans) and every KFold already seed 42;
+  SVR is deterministic (no random_state); no train_test_split or UMAP/t-SNE exist in 1B yet.
+  The config comment mandates any future UMAP/t-SNE (added during 1A clustering convergence) use
+  config.SEED, operationalizing "random_state=42 everywhere." No behavior change (values identical).

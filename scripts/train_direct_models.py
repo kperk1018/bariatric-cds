@@ -42,12 +42,11 @@ from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import (
-    DATA, ARTIFACTS, BASELINE_FEATURES, TBWL_BY_YEAR, FML_BY_YEAR,
+    DATA, ARTIFACTS, BASELINE_FEATURES, TBWL_BY_YEAR, FML_BY_YEAR, SEED,
 )
 from src.data_load import load
 from src.preprocess import build_feature_matrix, get_numeric_cols
 
-SEED = 42
 N_FOLDS = 5
 MIN_CALIB = 30
 

@@ -34,13 +34,12 @@ except ImportError:
 
 from src.config import (
     DATA, ARTIFACTS, BASELINE_FEATURES, TBWL_BY_YEAR, FML_BY_YEAR,
-    LAGGED_TBWL_BY_YEAR, LAGGED_FML_BY_YEAR, MODEL_PERFORMANCE,
+    LAGGED_TBWL_BY_YEAR, LAGGED_FML_BY_YEAR, MODEL_PERFORMANCE, SEED,
 )
 from src.data_load import load
 from src.preprocess import build_feature_matrix, get_numeric_cols
 
 DELTA_TOLERANCE = 0.05
-SEED = 42
 CV_FOLDS = 5
 SHAP_BG_SIZE = 50
 

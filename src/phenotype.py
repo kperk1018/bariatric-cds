@@ -17,11 +17,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-from src.config import ARTIFACTS
+from src.config import ARTIFACTS, SEED
 
 TRAJ_COLS = ["1yr_Postop_TBWL", "2yr_Postop_TBWL", "3yr_Postop_TBWL"]
 K_RANGE = range(2, 11)  # candidate cluster counts; k chosen by max silhouette
-SEED = 42
 _MODEL_PATH = ARTIFACTS / "phenotype_kmeans.joblib"
 
 
