@@ -254,12 +254,12 @@ with st.sidebar:
         score_epw   = st.number_input("Epworth score (0-24)", min_value=0.0,  max_value=24.0,   value=None, step=1.0,  key="score_epw")
         preop_visits = st.number_input("Preop clinic visits", min_value=0.0,  max_value=40.0,   value=None, step=1.0,  key="preop_visits")
 
-    # map optional inputs to raw CSV column names (some carry stray spaces)
+    # map optional inputs to the cleaned 1A/1B column names
     OPTIONAL_FEATURES = {
         "Preop_HbA1c": lab_hba1c, "Preop_Glucose": lab_glucose,
-        "Preop_Insulin": lab_insulin, "Preop_TG ": lab_tg,
+        "Preop_Insulin": lab_insulin, "Preop_TG": lab_tg,
         "Preop_HDL": lab_hdl, "Preop_CRP": lab_crp, "Preop_ALT": lab_alt,
-        "BES_score": score_bes, "IWQoL_score ": score_iwqol,
+        "BES_score": score_bes, "IWQoL_score": score_iwqol,
         "Epworth_score": score_epw, "Preop_Visits": preop_visits,
     }
     COMORB_TO_COL = {

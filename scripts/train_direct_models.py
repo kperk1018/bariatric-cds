@@ -52,15 +52,15 @@ N_FOLDS = 5
 MIN_CALIB = 30
 
 # Preop-only expansion candidates (verified against the CSV; coverage >= 40%).
-# Note: three column names carry stray spaces in the raw file.
+# Names use the cleaned 1A/1B convention (data_load.load standardizes on load).
 EXPANDED_EXTRA = [
     "Preop_Glucose", "Preop_Albumin", "Preop_Total_Protein", "Preop_Insulin",
-    "Preop_HbA1c", "Preop _chol", "Preop_HDL", "Preop_LDL", "Preop_TG ",
+    "Preop_HbA1c", "Preop_chol", "Preop_HDL", "Preop_LDL", "Preop_TG",
     "Preop_TSH", "Preop_AST", "Preop_ALT", "Preop_ALP", "Preop_CRP",
     "OSA", "DM", "HTN", "Hyperlipidemia", "Depression", "GERD", "Smoker",
     "CPAP", "Home_Anticoagulation", "Prior_MBS_Procedure",
     "Prior_Abdominal_Procedure", "Mobility_Affecting_Surgery", "Habitus",
-    "BES_score", "ACE_score", "Epworth_score", "IWQoL_score ",
+    "BES_score", "ACE_score", "Epworth_score", "IWQoL_score",
     "Preop_Visits", "GERD_on_UGI", "HH_on_UGI", "Dysmotility",
 ]
 

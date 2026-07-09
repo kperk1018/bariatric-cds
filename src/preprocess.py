@@ -4,10 +4,40 @@ Both reproduce_models.py (train) and predict.py (inference) must use this
 module so the feature matrix is identical at train and inference time.
 Divergence here is the #1 silent bug in deployed ML systems.
 """
+import re
 import numpy as np
 import pandas as pd
 
 CATEGORICAL_COLS = ["Sex", "Race", "Surgery_Type"]
+
+
+def clean_column_name(name: str) -> str:
+    """Standardize one column name to match Ioanna's (1A) cleaning convention.
+
+    Her rule: ``x.replace("%","pct").replace("-","_").replace(" ","_").strip()``.
+    We additionally collapse repeated underscores and strip leading/trailing
+    underscores, because our raw file has stray *interior* spaces
+    (``"Preop _chol"``, ``"1yr_Postop_ AST"``, ``"IWQoL_score "``) that her rule
+    alone would turn into double underscores. This yields the single-underscore
+    names her code actually references (e.g. ``Preop_chol``, ``1yr_Postop_FMLpct``).
+    """
+    s = str(name).replace("%", "pct").replace("-", "_").replace(" ", "_").strip()
+    s = re.sub(r"_+", "_", s)
+    return s.strip("_")
+
+
+def clean_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Return df with columns renamed via :func:`clean_column_name`.
+
+    Raises if two distinct raw columns collapse to the same cleaned name, which
+    would silently drop data.
+    """
+    mapping = {c: clean_column_name(c) for c in df.columns}
+    cleaned = list(mapping.values())
+    dupes = {n for n in cleaned if cleaned.count(n) > 1}
+    if dupes:
+        raise ValueError(f"Column cleaning produced name collisions: {sorted(dupes)}")
+    return df.rename(columns=mapping)
 
 
 def build_feature_matrix(

@@ -20,8 +20,10 @@ BASELINE_FEATURES = [
     "Initial_BMR", "Initial_VF", "Initial_FATpct", "Initial_FATMASS",
     "Initial_FFM", "Time_to_Surgery", "Surgery_Type", "Preop_BMI", "Preop_TBWL",
 ]
+# Column names use the shared 1A/1B cleaned convention (src.data_load.load applies
+# it): "%"→"pct", "-"/" "→"_", collapsed underscores. So FML% → FMLpct.
 TBWL_BY_YEAR = {y: f"{y}yr_Postop_TBWL" for y in range(1, 7)}
-FML_BY_YEAR = {y: f"{y}yr_Postop_FML%" for y in range(1, 7)}
+FML_BY_YEAR = {y: f"{y}yr_Postop_FMLpct" for y in range(1, 7)}
 
 # Lagged features used by reproduce_models.py for years 2-6.
 # Only the single most-recent prior year is used (one-lag model). This keeps
@@ -40,11 +42,11 @@ LAGGED_TBWL_BY_YEAR: dict[int, list[str]] = {
 }
 LAGGED_FML_BY_YEAR: dict[int, list[str]] = {
     1: [],
-    2: ["1yr_Postop_FML%"],
-    3: ["2yr_Postop_FML%"],
-    4: ["3yr_Postop_FML%"],
-    5: ["4yr_Postop_FML%"],
-    6: ["5yr_Postop_FML%"],
+    2: ["1yr_Postop_FMLpct"],
+    3: ["2yr_Postop_FMLpct"],
+    4: ["3yr_Postop_FMLpct"],
+    5: ["4yr_Postop_FMLpct"],
+    6: ["5yr_Postop_FMLpct"],
 }
 
 # --- S5: best-model R² (and RMSE) per outcome/year. Source of the gating. ---

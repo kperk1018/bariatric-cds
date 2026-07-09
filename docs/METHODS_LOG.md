@@ -106,3 +106,13 @@ One line per modeling choice. This is what makes the work defensible + publishab
   the merge is fixed upstream or aligned with Ioanna's dedup policy (manuscript 1A↔1B).
   Streamlit app degrades gracefully (cohort features fall back, no crash). pytest
   unaffected (45 pass / 2 skip; tests mock the data).
+- 2026-07-08  Column-name standardization (1A↔1B alignment): src.preprocess.clean_column_name
+  applies Ioanna's convention ("%"→"pct", "-"/" "→"_") plus underscore-collapse+strip, so our
+  stray-interior-space columns ("Preop _chol", "1yr_Postop_ AST", "IWQoL_score ") and "FML%"
+  map to her single-underscore names ("Preop_chol", "1yr_Postop_AST", "..._FMLpct"). Applied in
+  data_load.load() so every downstream consumer reads identical feature names. Updated
+  FML_BY_YEAR/LAGGED_FML_BY_YEAR (FML%→FMLpct), train_direct_models EXPANDED_EXTRA, and the app's
+  optional-lab keys. Frozen model metas migrated in place (scripts/migrate_artifact_names.py) —
+  label strings only, estimators untouched; predictions verified byte-identical to pre-change
+  snapshot. Residual case/name drift vs her file (Preop_visits vs Preop_Visits, Operation_time
+  vs Operation_Time) deferred to the v2-CSV reconciliation. pytest 45 pass/2 skip; app boots.

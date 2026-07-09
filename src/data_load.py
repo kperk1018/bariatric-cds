@@ -2,10 +2,15 @@
 import re
 import pandas as pd
 from src.config import DATA, ID_COL
+from src.preprocess import clean_columns
 
 
 def load(path=DATA, strict_unique_ids: bool = True) -> pd.DataFrame:
     """Load the patient CSV.
+
+    Column names are standardized to the shared 1A/1B cleaning convention
+    (see :func:`src.preprocess.clean_column_name`) immediately on load, so every
+    downstream consumer reads identical feature names to Ioanna's pipeline.
 
     Args:
         path: CSV path.
@@ -14,6 +19,7 @@ def load(path=DATA, strict_unique_ids: bool = True) -> pd.DataFrame:
             the raw, un-deduplicated file); never for training/clustering.
     """
     df = pd.read_csv(path)
+    df = clean_columns(df)
     _deid_guard(df)
     if strict_unique_ids:
         _dup_id_guard(df)
