@@ -1,27 +1,38 @@
-"""Fit + persist the phenotype k-means, with k derived by silhouette (not forced).
+"""Fit + persist the 1A-aligned phenotype pipeline (see src/phenotype.py).
 
-Prints the full silhouette curve over k=2..10 and the auto-selected k. Loads via
-the standard loader, which now applies 1A-aligned keep-first dedup.
+Prints the silhouette curve, the auto-selected k, and per-cluster predicted-TBWL
+trajectory means (comparable to Supplementary Table S7). Loads via the standard
+loader (keep-first dedup applied).
 """
+import warnings
+
 from src.data_load import load
-from src.phenotype import fit_phenotypes, select_k, TRAJ_COLS
-from sklearn.preprocessing import StandardScaler
+from src.phenotype import fit_phenotypes
 
 
 def main():
-    df = load()  # keep-first dedup applied in loader (matches 1A)
-    sub = df.dropna(subset=TRAJ_COLS)
-    X = StandardScaler().fit_transform(sub[TRAJ_COLS].values)
+    warnings.simplefilter("ignore")
+    df = load()
+    print(f"Fitting 1A-aligned phenotypes on N={len(df)} (keep-first deduped)...")
+    bundle = fit_phenotypes(df)
 
-    chosen_k, sil = select_k(X)
-    print(f"N = {len(sub)} (complete years 1-3)\nk : silhouette")
-    for k, s in sil.items():
-        marker = "  <- selected (argmax)" if k == chosen_k else ""
-        print(f"{k} : {s:.4f}{marker}")
+    print("\nk : silhouette (UMAP embedding)")
+    for k, s in bundle["silhouette_by_k"].items():
+        mark = "  <- selected (argmax)" if k == bundle["k"] else ""
+        print(f"{k:>2} : {s:.4f}{mark}")
 
-    bundle = fit_phenotypes(df)  # derives k internally, persists the frozen model
-    print(f"\nAuto-selected k={bundle['k']} (silhouette-argmax) on {bundle['n_train']} "
-          f"patients; saved to artifacts/phenotype_kmeans.joblib")
+    print(f"\nAuto-selected k={bundle['k']} on {bundle['n_train']} patients.")
+    print("\nPer-cluster mean ACTUAL TBWL% by year (ordered by ascending Preop_TBWL):")
+    hdr = "cluster    n   " + "  ".join(f"yr{y}" for y in range(1, 7))
+    print(hdr)
+    for c in range(bundle["k"]):
+        cinfo = bundle["cluster_actual_traj"][c]
+        cells = []
+        for y in range(1, 7):
+            v = cinfo["per_year"].get(y)
+            cells.append(f"{v['mean']:4.1f}" if v else "  --")
+        print(f"{c:>7}  {cinfo['n']:>3}   " + "  ".join(cells))
+    print("\nSaved to artifacts/phenotype_kmeans.joblib")
 
 
 if __name__ == "__main__":

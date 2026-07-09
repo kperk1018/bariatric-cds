@@ -1,54 +1,76 @@
-"""Tests for src/phenotype.py — k is derived by silhouette, never hard-coded."""
+"""Tests for src/phenotype.py — 1A-aligned clustering (UMAP + silhouette-derived k).
+
+Uses a tiny synthetic cohort and a stub predict_trajectory so no real CSV or
+trained models are needed. k is derived by silhouette, never hard-coded.
+"""
 import unittest
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 
-from src.phenotype import select_k, fit_phenotypes, assign_phenotype, TRAJ_COLS
+import src.phenotype as phe
 
 
-class TestSelectK(unittest.TestCase):
-    def test_picks_two_for_two_clear_blobs(self):
-        rng = np.random.default_rng(42)
-        a = rng.normal(0, 0.2, size=(60, 3))
-        b = rng.normal(6, 0.2, size=(60, 3))
-        X = np.vstack([a, b])
-        k, sil = select_k(X)
-        self.assertEqual(k, 2)
-        self.assertEqual(k, max(sil, key=sil.get))  # k is the argmax, not assumed
-        self.assertTrue(set(sil).issubset(set(range(2, 11))))
+def _synthetic_cohort(n=90, seed=42):
+    rng = np.random.default_rng(seed)
+    rows = []
+    # two separated preop groups (low vs high Preop_TBWL / BMI)
+    for i in range(n):
+        hi = i % 2 == 0
+        rows.append({
+            "Age": rng.normal(45, 5), "Sex": "Female" if i % 3 else "Male",
+            "Race": "White", "Height": rng.normal(64, 3),
+            "Initial_BMI": rng.normal(48 if hi else 40, 1.5),
+            "Initial_Weight": rng.normal(260 if hi else 210, 8),
+            "Initial_BMR": rng.normal(1900, 80), "Initial_VF": rng.normal(14, 2),
+            "Initial_FATpct": rng.normal(45, 3), "Initial_FATMASS": rng.normal(115, 10),
+            "Initial_FFM": rng.normal(137, 8), "Time_to_Surgery": rng.normal(135, 20),
+            "Surgery_Type": "Sleeve" if i % 2 else "Bypass",
+            "Preop_BMI": rng.normal(38, 2),
+            "Preop_TBWL": rng.normal(14 if hi else 8, 1.0),
+        })
+    return pd.DataFrame(rows)
 
-    def test_argmax_is_reported_k(self):
+
+def _stub_predict(patient):
+    """Trajectory correlated with Preop_TBWL so clusters are separable."""
+    base = float(patient["Preop_TBWL"]) * 2.0
+    return {"TBWL": {y: {"point": base - y} for y in range(1, 7)}}
+
+
+class TestPhenotypeClustering(unittest.TestCase):
+    def test_fit_derives_k_and_persists_bundle(self):
+        df = _synthetic_cohort()
+        with patch("src.predict.predict_trajectory", side_effect=_stub_predict):
+            bundle = phe.fit_phenotypes(df, save=False)
+        self.assertIn(bundle["k"], set(phe.K_RANGE))          # k came from the sweep
+        self.assertEqual(bundle["k"], max(bundle["silhouette_by_k"],
+                                          key=bundle["silhouette_by_k"].get))
+        self.assertEqual(bundle["n_train"], len(df))
+        # clusters ordered by ascending mean Preop_TBWL (label 0 = lowest)
+        self.assertEqual(set(bundle["remap"].values()), set(range(bundle["k"])))
+        self.assertIn("reducer", bundle)   # UMAP reducer persisted for online assign
+        self.assertIn("cluster_actual_traj", bundle)
+
+    def test_assign_is_deterministic_and_returns_k(self):
+        df = _synthetic_cohort()
+        with patch("src.predict.predict_trajectory", side_effect=_stub_predict):
+            bundle = phe.fit_phenotypes(df, save=False)
+            patient = df.iloc[0].to_dict()
+            traj = _stub_predict(patient)
+            a = phe.assign_phenotype(patient, traj=traj, bundle=bundle)
+            b = phe.assign_phenotype(patient, traj=traj, bundle=bundle)
+        self.assertEqual(a["phenotype"], b["phenotype"])
+        self.assertEqual(a["k"], bundle["k"])
+        self.assertIn(a["phenotype"], range(bundle["k"]))
+
+    def test_select_k_argmax_on_embedding(self):
         rng = np.random.default_rng(0)
-        # three separated blobs -> silhouette should favor 3
-        X = np.vstack([rng.normal(c, 0.1, size=(40, 3)) for c in (0, 5, 10)])
-        k, sil = select_k(X)
+        emb = np.vstack([rng.normal(c, 0.15, size=(40, 2)) for c in (0, 5, 10)])
+        k, sil = phe.select_k(emb)
         self.assertEqual(k, max(sil, key=sil.get))
         self.assertEqual(k, 3)
-
-
-class TestFitAssign(unittest.TestCase):
-    def _blob_df(self):
-        rng = np.random.default_rng(42)
-        lo = rng.normal(10, 1.0, size=(50, 3))
-        hi = rng.normal(40, 1.0, size=(50, 3))
-        X = np.vstack([lo, hi])
-        return pd.DataFrame(X, columns=TRAJ_COLS)
-
-    def test_fit_derives_k_and_stores_metadata(self):
-        bundle = fit_phenotypes(self._blob_df(), save=False)
-        self.assertEqual(bundle["k"], 2)
-        self.assertIn("silhouette_by_k", bundle)
-        self.assertEqual(bundle["n_train"], 100)
-        # clusters relabeled 0..k-1 by ascending yr-3 TBWL
-        self.assertEqual(set(bundle["remap"].values()), {0, 1})
-
-    def test_assign_returns_k_and_places_patient(self):
-        bundle = fit_phenotypes(self._blob_df(), save=False)
-        low = assign_phenotype(dict(zip(TRAJ_COLS, [10, 10, 10])), bundle=bundle)
-        high = assign_phenotype(dict(zip(TRAJ_COLS, [40, 40, 40])), bundle=bundle)
-        self.assertEqual(low["k"], 2)
-        self.assertEqual(low["phenotype"], 0)   # lowest-loss cluster
-        self.assertEqual(high["phenotype"], 1)  # highest-loss cluster
 
 
 if __name__ == "__main__":

@@ -142,3 +142,17 @@ One line per modeling choice. This is what makes the work defensible + publishab
   802 rows for auditing. Also verified: our cleaned column names match her file exactly (185/185),
   and our MODEL_PERFORMANCE gating equals her Supplementary Table S5 per-year best model (R²/RMSE
   to 3 dp) — independent validation of the reliability tiers.
+- 2026-07-09  Phenotype clustering CONVERGED onto Ioanna's 1A method (Supplementary Table S7).
+  New src/phenotype.py: cluster on preop features (15 BASELINE_FEATURES, OHE drop_first) +
+  model-predicted TBWL yrs 1-5 -> UMAP(n_components=2, n_neighbors=8, min_dist=0.15, seed 42)
+  -> silhouette-argmax k over 2..10 -> KMeans(seed 42, n_init=10) on the embedding -> clusters
+  ordered by ascending mean Preop_TBWL. Independently reproduces her k=5 (our prior actual-TBWL
+  yrs1-3 space gave k=2) and her cluster Preop_TBWL ladder (ours 8.9/11.0/11.5/12.3/12.9% vs S7
+  9.0/10.7/11.2/12.7/12.8%). Two documented deltas from her exact run (her intermediate
+  prediction CSV was not provided): trajectory input uses 1B's preop-honest predict_trajectory
+  (not her in-sample RandomForest fitted values), and the preop panel is the 15 baseline
+  features (not her larger set). Both offline fit and online assign use the same trajectory
+  source; new patients are placed via umap.transform + kmeans.predict (deterministic). Bundle
+  stores imputer/scaler/UMAP/KMeans/order/silhouette-curve/per-cluster actual-TBWL means.
+  New dependency: umap-learn. Methodological caveats from BENCHMARK (clustering on a UMAP
+  embedding; in-sample vs preop predictions) still apply and are noted for the manuscript.

@@ -104,36 +104,15 @@ def _tbwl_distributions():
 
 @st.cache_data(show_spinner=False)
 def _cluster_trajectories():
+    """Per-cluster actual-TBWL trajectory means, read from the fitted phenotype
+    bundle (computed at fit time in src.phenotype.fit_phenotypes)."""
     import joblib
-    df = _load_cohort()
-    if df is None:
-        return None
     pheno_path = ARTIFACTS / "phenotype_kmeans.joblib"
     if not pheno_path.exists():
         return None
     try:
         bundle = joblib.load(pheno_path)
-        traj_cols = bundle["traj_cols"]
-        sub = df.dropna(subset=traj_cols).copy()
-        if len(sub) == 0:
-            return None
-        X = bundle["scaler"].transform(sub[traj_cols].values)
-        sub["_cluster"] = [bundle["remap"][r] for r in bundle["kmeans"].predict(X)]
-        result = {}
-        for clid in range(bundle["k"]):
-            grp = sub[sub["_cluster"] == clid]
-            per_year = {}
-            for yr, col in TBWL_BY_YEAR.items():
-                if col in grp.columns:
-                    vals = pd.to_numeric(grp[col], errors="coerce").dropna()
-                    if len(vals) >= 3:
-                        per_year[yr] = {
-                            "mean": float(vals.mean()),
-                            "sd": float(vals.std()),
-                            "n": len(vals),
-                        }
-            result[clid] = {"per_year": per_year, "n": len(grp)}
-        return result
+        return bundle.get("cluster_actual_traj")
     except Exception:
         return None
 
@@ -763,115 +742,112 @@ with tab_pheno:
 
     pheno_model_path = ARTIFACTS / "phenotype_kmeans.joblib"
     pheno_id = None
-    traj_vals_pheno = {}
+
+    # 1A-aligned clustering needs predicted TBWL yrs 1-5 (all non-red)
+    traj_pts = {yr: traj["TBWL"][yr]["point"] for yr in [1, 2, 3, 4, 5]}
 
     if not pheno_model_path.exists():
         st.info("Phenotype model not found. Run `python scripts/run_clustering.py` first.")
+    elif any(v is None for v in traj_pts.values()):
+        st.warning(
+            "Cannot assign phenotype: predicted TBWL is unavailable for one or more of "
+            "years 1-5 (red tier). Use clinical judgement."
+        )
     else:
-        for yr in [1, 2, 3]:
-            d = traj["TBWL"][yr]
-            if d["point"] is not None:
-                traj_vals_pheno[f"{yr}yr_Postop_TBWL"] = d["point"]
+        with st.spinner("Assigning phenotype (UMAP projection)..."):
+            result_pheno = assign_phenotype(patient, traj=traj)
+        pheno_id = result_pheno["phenotype"]
+        pheno_k = result_pheno["k"]
+        pheno_n = result_pheno["n_train"]
+        short_label, short_desc = phenotype_label(pheno_id, pheno_k)
+        yr1_pt, yr5_pt = traj_pts[1], traj_pts[5]
+        trend = "declining over time" if yr5_pt < yr1_pt else "sustained or improving over time"
 
-        if len(traj_vals_pheno) < 3:
-            st.warning(
-                "Cannot assign phenotype: TBWL unavailable for one or more of years 1-3 "
-                "(red tier). Use clinical judgement."
+        st.info(
+            f"Among the {pheno_n} patients in this cohort, this patient's preop profile and "
+            f"predicted TBWL trajectory place them in the **{short_label}** group "
+            f"(Cluster {pheno_id} of {pheno_k}). "
+            f"Their predicted TBWL% moves from {yr1_pt:.1f}% at year 1 to {yr5_pt:.1f}% at year 5, "
+            f"which is {trend}. {short_desc}"
+        )
+
+        st.metric("Phenotype Cluster", f"#{pheno_id} of {pheno_k}")
+        st.caption(
+            f"Clustering (1A-aligned): preop features + predicted TBWL yrs 1-5 -> UMAP -> "
+            f"KMeans, k={pheno_k} (silhouette-derived), N={pheno_n}, ordered by ascending "
+            f"Preop_TBWL. {result_pheno['note']}"
+        )
+
+        # Cluster deep-dive
+        st.divider()
+        st.subheader("Cluster Deep-Dive -- How This Patient Compares to Their Group")
+
+        cluster_data = _cluster_trajectories()
+        if cluster_data is None:
+            st.info(
+                "Cohort cluster data unavailable -- CSV not found. "
+                "Drop the data file into `data/` to enable this view."
             )
         else:
-            result_pheno = assign_phenotype(traj_vals_pheno)
-            pheno_id = result_pheno["phenotype"]
-            pheno_k = result_pheno["k"]
-            pheno_n = result_pheno["n_train"]
-            short_label, short_desc = phenotype_label(pheno_id, pheno_k)
-            yr1_pt = traj_vals_pheno.get("1yr_Postop_TBWL", 0)
-            yr3_pt = traj_vals_pheno.get("3yr_Postop_TBWL", 0)
-            trend = "declining over time" if yr3_pt < yr1_pt else "sustained or improving over time"
+            cl = cluster_data.get(pheno_id, {})
+            per_yr = cl.get("per_year", {})
+            cl_n = cl.get("n", 0)
 
-            st.info(
-                f"Among the {pheno_n} patients with complete 3-year follow-up in this cohort, this patient's "
-                f"predicted trajectory most closely resembles the **{short_label}** group "
-                f"(Cluster {pheno_id} of {pheno_k}). "
-                f"Their predicted TBWL% moves from {yr1_pt:.1f}% at year 1 to {yr3_pt:.1f}% at year 3, "
-                f"which is {trend}. {short_desc}"
-            )
+            if per_yr:
+                fig_cl, ax_cl = plt.subplots(figsize=(9, 5))
+                yrs_cl = sorted(per_yr.keys())
+                means_cl = [per_yr[yr]["mean"] for yr in yrs_cl]
+                sds_cl = [per_yr[yr]["sd"] for yr in yrs_cl]
 
-            st.metric("Phenotype Cluster", f"#{pheno_id} of {pheno_k}")
-            st.caption(
-                f"Clustering: k-means on standardized TBWL% at years 1-3, k={pheno_k} "
-                f"(silhouette-derived), complete-case N={pheno_n}. {result_pheno['note']}"
-            )
-
-            # Cluster deep-dive
-            st.divider()
-            st.subheader("Cluster Deep-Dive -- How This Patient Compares to Their Group")
-
-            cluster_data = _cluster_trajectories()
-            if cluster_data is None:
-                st.info(
-                    "Cohort cluster data unavailable -- CSV not found. "
-                    "Drop the data file into `data/` to enable this view."
+                ax_cl.errorbar(
+                    yrs_cl, means_cl, yerr=sds_cl, fmt="o-",
+                    label=f"Cluster {pheno_id} actual (N={cl_n}, mean +/- SD)",
+                    color="#2980b9", capsize=5, linewidth=2,
                 )
+                ax_cl.fill_between(
+                    yrs_cl,
+                    [m - s for m, s in zip(means_cl, sds_cl)],
+                    [m + s for m, s in zip(means_cl, sds_cl)],
+                    alpha=0.12, color="#2980b9",
+                )
+
+                pts = [(yr, traj["TBWL"][yr]["point"]) for yr in range(1, 7)
+                       if traj["TBWL"][yr]["point"] is not None]
+                if pts:
+                    xs, ys = zip(*pts)
+                    ax_cl.plot(
+                        xs, ys, "^--",
+                        label="This patient (predicted)",
+                        color="#e74c3c", linewidth=2, markersize=10,
+                    )
+
+                ax_cl.set_xlabel("Year Postoperative")
+                ax_cl.set_ylabel("TBWL%")
+                ax_cl.set_title(
+                    f"Cluster {pheno_id} -- Actual cohort trajectories vs. patient prediction"
+                )
+                ax_cl.set_xticks(range(1, 7))
+                ax_cl.legend()
+                ax_cl.grid(True, alpha=0.25)
+                plt.tight_layout()
+                st.pyplot(fig_cl)
+                plt.close(fig_cl)
+
+                if (2 in per_yr and traj["TBWL"][2]["point"] is not None):
+                    cl_mean2 = per_yr[2]["mean"]
+                    cl_sd2 = per_yr[2]["sd"]
+                    pt2 = traj["TBWL"][2]["point"]
+                    rel = "above" if pt2 > cl_mean2 else "below"
+                    z = (pt2 - cl_mean2) / cl_sd2 if cl_sd2 > 0 else 0
+                    st.info(
+                        f"The {cl_n} patients in cluster {pheno_id} ('{short_label}') had a mean "
+                        f"year-2 TBWL of **{cl_mean2:.1f}% +/- {cl_sd2:.1f}% SD**. "
+                        f"This patient's predicted year-2 TBWL is **{pt2:.1f}%** -- "
+                        f"{rel} the cluster average by {abs(pt2 - cl_mean2):.1f} pp "
+                        f"({abs(z):.1f} SD)."
+                    )
             else:
-                cl = cluster_data.get(pheno_id, {})
-                per_yr = cl.get("per_year", {})
-                cl_n = cl.get("n", 0)
-
-                if per_yr:
-                    fig_cl, ax_cl = plt.subplots(figsize=(9, 5))
-                    yrs_cl = sorted(per_yr.keys())
-                    means_cl = [per_yr[yr]["mean"] for yr in yrs_cl]
-                    sds_cl = [per_yr[yr]["sd"] for yr in yrs_cl]
-
-                    ax_cl.errorbar(
-                        yrs_cl, means_cl, yerr=sds_cl, fmt="o-",
-                        label=f"Cluster {pheno_id} actual (N={cl_n}, mean +/- SD)",
-                        color="#2980b9", capsize=5, linewidth=2,
-                    )
-                    ax_cl.fill_between(
-                        yrs_cl,
-                        [m - s for m, s in zip(means_cl, sds_cl)],
-                        [m + s for m, s in zip(means_cl, sds_cl)],
-                        alpha=0.12, color="#2980b9",
-                    )
-
-                    pts = [(yr, traj["TBWL"][yr]["point"]) for yr in range(1, 7)
-                           if traj["TBWL"][yr]["point"] is not None]
-                    if pts:
-                        xs, ys = zip(*pts)
-                        ax_cl.plot(
-                            xs, ys, "^--",
-                            label="This patient (predicted)",
-                            color="#e74c3c", linewidth=2, markersize=10,
-                        )
-
-                    ax_cl.set_xlabel("Year Postoperative")
-                    ax_cl.set_ylabel("TBWL%")
-                    ax_cl.set_title(
-                        f"Cluster {pheno_id} -- Actual cohort trajectories vs. patient prediction"
-                    )
-                    ax_cl.set_xticks(range(1, 7))
-                    ax_cl.legend()
-                    ax_cl.grid(True, alpha=0.25)
-                    plt.tight_layout()
-                    st.pyplot(fig_cl)
-                    plt.close(fig_cl)
-
-                    if (2 in per_yr and traj["TBWL"][2]["point"] is not None):
-                        cl_mean2 = per_yr[2]["mean"]
-                        cl_sd2 = per_yr[2]["sd"]
-                        pt2 = traj["TBWL"][2]["point"]
-                        rel = "above" if pt2 > cl_mean2 else "below"
-                        z = (pt2 - cl_mean2) / cl_sd2 if cl_sd2 > 0 else 0
-                        st.info(
-                            f"The {cl_n} patients in cluster {pheno_id} ('{short_label}') had a mean "
-                            f"year-2 TBWL of **{cl_mean2:.1f}% +/- {cl_sd2:.1f}% SD**. "
-                            f"This patient's predicted year-2 TBWL is **{pt2:.1f}%** -- "
-                            f"{rel} the cluster average by {abs(pt2 - cl_mean2):.1f} pp "
-                            f"({abs(z):.1f} SD)."
-                        )
-                else:
-                    st.info(f"Cluster {pheno_id} has too few patients for a trajectory reference.")
+                st.info(f"Cluster {pheno_id} has too few patients for a trajectory reference.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1054,22 +1030,18 @@ with tab_summary:
 
     summary_pheno_id = None
     summary_pheno_short, summary_pheno_desc, summary_pheno_k = "", "", None
-    if (ARTIFACTS / "phenotype_kmeans.joblib").exists():
-        summary_traj_vals = {
-            f"{yr}yr_Postop_TBWL": traj["TBWL"][yr]["point"]
-            for yr in [1, 2, 3]
-            if traj["TBWL"][yr]["point"] is not None
-        }
-        if len(summary_traj_vals) == 3:
-            try:
-                _res = assign_phenotype(summary_traj_vals)
-                summary_pheno_id = _res["phenotype"]
-                summary_pheno_k = _res["k"]
-                summary_pheno_short, summary_pheno_desc = phenotype_label(
-                    summary_pheno_id, summary_pheno_k
-                )
-            except Exception:
-                pass
+    if (ARTIFACTS / "phenotype_kmeans.joblib").exists() and all(
+        traj["TBWL"][yr]["point"] is not None for yr in [1, 2, 3, 4, 5]
+    ):
+        try:
+            _res = assign_phenotype(patient, traj=traj)
+            summary_pheno_id = _res["phenotype"]
+            summary_pheno_k = _res["k"]
+            summary_pheno_short, summary_pheno_desc = phenotype_label(
+                summary_pheno_id, summary_pheno_k
+            )
+        except Exception:
+            pass
 
     risk_sum = assess_preop_risk(patient["Preop_TBWL"])
     shap_for_card = st.session_state.get("shap_result")
