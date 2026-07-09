@@ -28,21 +28,21 @@ st.set_page_config(page_title="Bariatric CDS", layout="wide")
 # ── colour map for reliability tiers ──────────────────────────────────────────
 TIER_COLOR = {"green": "#2ecc71", "amber": "#f39c12", "red": "#e74c3c"}
 
-# ── provisional phenotype descriptions ────────────────────────────────────────
-PHENOTYPE_DESC = {
-    0: "Minimal loss — lowest average TBWL through year 3. May benefit from additional preop support.",
-    1: "Moderate loss, plateauing after year 2. Typical trajectory for this cohort.",
-    2: "Moderate-high loss, sustained through year 3.",
-    3: "High early loss with continued decline. Strong response to surgery.",
-    4: "Highest loss trajectory — strong responders across years 1-3.",
-}
-PHENOTYPE_SHORT = {
-    0: "minimal responder",
-    1: "moderate responder (plateauing)",
-    2: "moderate-high responder",
-    3: "high early responder",
-    4: "strongest responder",
-}
+# ── provisional phenotype descriptions (k is data-derived, so labels are dynamic) ─
+def phenotype_label(rank: int, k: int) -> tuple[str, str]:
+    """(short, description) for a cluster. Clusters are ordered 0..k-1 by ascending
+    year-3 TBWL%, so 0 = least weight lost, k-1 = most."""
+    if k <= 1:
+        return "single group", ""
+    if rank == 0:
+        short = "lowest-loss responders"
+    elif rank == k - 1:
+        short = "highest-loss responders"
+    else:
+        short = f"mid-loss responders (tier {rank + 1} of {k})"
+    desc = (f"Cluster {rank} of {k}, ordered by ascending year-3 TBWL% "
+            f"(0 = least weight lost, {k - 1} = most).")
+    return short, desc
 
 # ── comorbidity remission reference table (population-level literature) ────────
 COMORBIDITY_REMISSION = {
@@ -139,7 +139,8 @@ def _cluster_trajectories():
 
 
 # ── helper: generate HTML summary card (feature 8) ────────────────────────────
-def _generate_summary_html(patient, traj, pheno_id, risk, shap_result=None):
+def _generate_summary_html(patient, traj, pheno_id, risk, shap_result=None,
+                           pheno_short="", pheno_desc=""):
     today = datetime.now().strftime("%Y-%m-%d")
     tbwl_rows = ""
     for yr in [1, 2, 4]:
@@ -155,8 +156,7 @@ def _generate_summary_html(patient, traj, pheno_id, risk, shap_result=None):
         pheno_text = (
             f"<h2>Trajectory Pattern</h2>"
             f"<p>This patient's predicted trajectory most closely resembles the "
-            f"<b>{PHENOTYPE_SHORT.get(pheno_id, f'cluster {pheno_id}')}</b> group. "
-            f"{PHENOTYPE_DESC.get(pheno_id, '')}</p>"
+            f"<b>{pheno_short or f'cluster {pheno_id}'}</b> group. {pheno_desc}</p>"
         )
     shap_text = ""
     if shap_result:
@@ -781,23 +781,25 @@ with tab_pheno:
         else:
             result_pheno = assign_phenotype(traj_vals_pheno)
             pheno_id = result_pheno["phenotype"]
-            short_label = PHENOTYPE_SHORT.get(pheno_id, f"cluster {pheno_id}")
+            pheno_k = result_pheno["k"]
+            pheno_n = result_pheno["n_train"]
+            short_label, short_desc = phenotype_label(pheno_id, pheno_k)
             yr1_pt = traj_vals_pheno.get("1yr_Postop_TBWL", 0)
             yr3_pt = traj_vals_pheno.get("3yr_Postop_TBWL", 0)
             trend = "declining over time" if yr3_pt < yr1_pt else "sustained or improving over time"
 
             st.info(
-                f"Among the 149 patients with complete 3-year follow-up in this cohort, this patient's "
+                f"Among the {pheno_n} patients with complete 3-year follow-up in this cohort, this patient's "
                 f"predicted trajectory most closely resembles the **{short_label}** group "
-                f"(Cluster {pheno_id} of 5). "
+                f"(Cluster {pheno_id} of {pheno_k}). "
                 f"Their predicted TBWL% moves from {yr1_pt:.1f}% at year 1 to {yr3_pt:.1f}% at year 3, "
-                f"which is {trend}. {PHENOTYPE_DESC.get(pheno_id, '')}"
+                f"which is {trend}. {short_desc}"
             )
 
-            st.metric("Phenotype Cluster", f"#{pheno_id} of 5")
+            st.metric("Phenotype Cluster", f"#{pheno_id} of {pheno_k}")
             st.caption(
-                f"Clustering: k-means on standardized TBWL% at years 1-3, k=5, complete-case N=149. "
-                f"{result_pheno['note']}"
+                f"Clustering: k-means on standardized TBWL% at years 1-3, k={pheno_k} "
+                f"(silhouette-derived), complete-case N={pheno_n}. {result_pheno['note']}"
             )
 
             # Cluster deep-dive
@@ -1051,6 +1053,7 @@ with tab_summary:
     )
 
     summary_pheno_id = None
+    summary_pheno_short, summary_pheno_desc, summary_pheno_k = "", "", None
     if (ARTIFACTS / "phenotype_kmeans.joblib").exists():
         summary_traj_vals = {
             f"{yr}yr_Postop_TBWL": traj["TBWL"][yr]["point"]
@@ -1059,7 +1062,12 @@ with tab_summary:
         }
         if len(summary_traj_vals) == 3:
             try:
-                summary_pheno_id = assign_phenotype(summary_traj_vals)["phenotype"]
+                _res = assign_phenotype(summary_traj_vals)
+                summary_pheno_id = _res["phenotype"]
+                summary_pheno_k = _res["k"]
+                summary_pheno_short, summary_pheno_desc = phenotype_label(
+                    summary_pheno_id, summary_pheno_k
+                )
             except Exception:
                 pass
 
@@ -1072,7 +1080,7 @@ with tab_summary:
     c2.metric("Preop Risk", "At risk" if risk_sum["flag"] == "at_risk" else "On track")
     c3.metric(
         "Phenotype",
-        f"Cluster {summary_pheno_id}" if summary_pheno_id is not None else "N/A",
+        f"Cluster {summary_pheno_id} of {summary_pheno_k}" if summary_pheno_id is not None else "N/A",
     )
 
     if shap_for_card:
@@ -1084,7 +1092,10 @@ with tab_summary:
             "Tip: run SHAP Drivers first to include top predictive features in the summary card."
         )
 
-    html_card = _generate_summary_html(patient, traj, summary_pheno_id, risk_sum, shap_for_card)
+    html_card = _generate_summary_html(
+        patient, traj, summary_pheno_id, risk_sum, shap_for_card,
+        pheno_short=summary_pheno_short, pheno_desc=summary_pheno_desc,
+    )
 
     import streamlit.components.v1 as components
     components.html(html_card, height=520, scrolling=True)

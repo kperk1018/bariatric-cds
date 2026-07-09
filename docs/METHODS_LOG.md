@@ -116,3 +116,12 @@ One line per modeling choice. This is what makes the work defensible + publishab
   label strings only, estimators untouched; predictions verified byte-identical to pre-change
   snapshot. Residual case/name drift vs her file (Preop_visits vs Preop_Visits, Operation_time
   vs Operation_Time) deferred to the v2-CSV reconciliation. pytest 45 pass/2 skip; app boots.
+- 2026-07-08  Cluster count now DERIVED, not forced (1A alignment; she was explicit k must not
+  be hard-coded). src/phenotype.select_k sweeps k=2..10 and picks argmax silhouette; fit_phenotypes
+  persists chosen k + full silhouette curve in the bundle; assign_phenotype returns k/n_train.
+  On our feature space (standardized TBWL yrs1-3, complete-case N=149) the silhouette-argmax is
+  k=2 (0.505), replacing the previously imposed k=5 (0.380). App phenotype labels/counts are now
+  k-agnostic (rank-based). run_clustering.py prints the curve and uses load(strict_unique_ids=False)
+  as a TEMP bypass (dedup parked). NOTE: clustering feature set/population is still 1B's own
+  (actual TBWL yrs1-3, complete-case) — convergence onto her predicted-trajectory/UMAP approach is
+  parked pending her intermediate CSVs. Added tests/test_phenotype.py.
