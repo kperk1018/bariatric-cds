@@ -20,7 +20,7 @@ from datetime import datetime
 from src.predict import predict_trajectory
 from src.phenotype import assign_phenotype
 from src.risk import assess_preop_risk
-from src.config import MODEL_PERFORMANCE, ARTIFACTS, TBWL_BY_YEAR
+from src.config import ARTIFACTS, TBWL_BY_YEAR
 from src.what_if import what_if_analysis
 
 st.set_page_config(page_title="Bariatric CDS", layout="wide")
@@ -118,7 +118,7 @@ def _cluster_trajectories():
 
 
 # ── helper: generate HTML summary card (feature 8) ────────────────────────────
-def _generate_summary_html(patient, traj, pheno_id, risk, shap_result=None,
+def _generate_summary_html(patient, traj, pheno_id, risk,
                            pheno_short="", pheno_desc=""):
     today = datetime.now().strftime("%Y-%m-%d")
     tbwl_rows = ""
@@ -137,14 +137,6 @@ def _generate_summary_html(patient, traj, pheno_id, risk, shap_result=None,
             f"<p>This patient's predicted trajectory most closely resembles the "
             f"<b>{pheno_short or f'cluster {pheno_id}'}</b> group. {pheno_desc}</p>"
         )
-    shap_text = ""
-    if shap_result:
-        top3 = shap_result.get("top_positive", [])[:3]
-        if top3:
-            shap_text = (
-                f"<h2>Top Predictive Drivers</h2>"
-                f"<p>{', '.join(d['feature'] for d in top3)}</p>"
-            )
     return f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Bariatric Surgery Trajectory Summary</title>
@@ -174,7 +166,6 @@ def _generate_summary_html(patient, traj, pheno_id, risk, shap_result=None,
 <p>{risk_icon} &mdash; Preop TBWL: {risk['preop_tbwl_pct']:.1f}% (threshold: 10.5%)</p>
 
 {pheno_text}
-{shap_text}
 
 <div class="disclaimer">
   <b>Research / quality-improvement use only.</b> Not a medical device. Not patient-facing.
@@ -282,7 +273,6 @@ with st.expander("Abbreviations & definitions"):
 | **FAT%** | Body Fat Percentage | Fat mass as a percentage of total body weight at the initial visit. |
 | **Preop TBWL%** | Preoperative TBWL% | Weight lost between first clinic visit and surgery, expressed as % of initial body weight. |
 | **R2** | R-squared | How much of the outcome variation the model explains (0 = nothing, 1 = perfect). Drives the green/amber/red reliability tier. |
-| **SHAP** | SHapley Additive exPlanations | Shows how much each feature pushed this patient's prediction up or down vs. the average patient. |
 | **Green tier** | R2 >= 0.40 | Model explains enough variation for a reliable point estimate. |
 | **Amber tier** | R2 0.20-0.40 | Weak signal -- treat as a rough guide, not a precise number. |
 | **Red tier** | R2 < 0.20 | Model cannot reliably predict this year. No point estimate shown. |
@@ -311,7 +301,7 @@ if compute_btn:
                 patient, postop_tbwl=postop_tbwl_input or None
             )
             st.session_state["patient"] = patient
-            for key in ("wi_result", "wi_modified", "surg_trajs", "shap_result", "shap_selected"):
+            for key in ("wi_result", "wi_modified", "surg_trajs"):
                 st.session_state.pop(key, None)
         except FileNotFoundError as exc:
             st.error(f"Model artifacts not found.\n\n{exc}")
@@ -331,8 +321,8 @@ if postop_tbwl_input:
         "Later-year forecasts are conditioned on these values."
     )
 
-tab_traj, tab_whatif, tab_pheno, tab_risk, tab_shap, tab_summary = st.tabs([
-    "Trajectory", "What-If", "Phenotype", "Preop Risk", "SHAP Drivers", "Summary"
+tab_traj, tab_whatif, tab_pheno, tab_risk, tab_summary = st.tabs([
+    "Trajectory", "What-If", "Phenotype", "Preop Risk", "Summary"
 ])
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -933,92 +923,6 @@ with tab_risk:
         st.info("Select comorbidities in the sidebar to see the literature reference panel.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Tab 5: SHAP Drivers
-# ─────────────────────────────────────────────────────────────────────────────
-with tab_shap:
-    st.subheader("Feature Importance (SHAP)")
-    st.caption(
-        "Shows which baseline features drive the prediction up or down relative to the average patient. "
-        "Only available for green/amber (non-red) years. "
-        "SVR models use KernelExplainer -- may take 1-2 minutes."
-    )
-
-    non_red_options = [
-        f"{outcome} yr{yr}"
-        for outcome in ["TBWL", "FML"]
-        for yr in range(1, 7)
-        if traj[outcome][yr]["point"] is not None
-    ]
-
-    if not non_red_options:
-        st.warning("No non-red years available for SHAP explanation.")
-    else:
-        selected = st.selectbox("Select outcome + year to explain:", non_red_options)
-        explain_btn = st.button("Explain Drivers", type="secondary")
-
-        if explain_btn:
-            outcome_sel, yr_sel = selected.split(" yr")
-            yr_int = int(yr_sel)
-
-            with st.spinner(f"Computing SHAP for {outcome_sel} yr{yr_int}..."):
-                try:
-                    from src.explain import explain_with_shap
-                    shap_result = explain_with_shap(patient, outcome_sel, yr_int, top_n=8)
-                    st.session_state["shap_result"] = shap_result
-                    st.session_state["shap_selected"] = selected
-                except FileNotFoundError as exc:
-                    st.error(str(exc))
-                    st.stop()
-                except ValueError as exc:
-                    st.error(str(exc))
-                    st.stop()
-
-        if "shap_result" in st.session_state and st.session_state.get("shap_selected") == selected:
-            shap_result = st.session_state["shap_result"]
-
-            top_pos = shap_result["top_positive"]
-            top_neg = shap_result["top_negative"]
-            pos_str = " and ".join(d["feature"] for d in top_pos[:2]) if top_pos else "none"
-            neg_str = " and ".join(d["feature"] for d in top_neg[:2]) if top_neg else "none"
-            base_val = shap_result["base_value"]
-            pred_pt = traj[shap_result["outcome"]][shap_result["year"]]["point"]
-            direction = "above" if pred_pt and pred_pt > base_val else "below"
-            diff = abs(round(pred_pt - base_val, 1)) if pred_pt else 0
-
-            st.info(
-                f"The average patient in the training cohort had a {shap_result['outcome']}% of "
-                f"**{base_val:.1f}%** at year {shap_result['year']}. "
-                f"This patient is predicted at **{pred_pt:.1f}%** -- {diff:.1f} points {direction} average. "
-                f"The features pushing their prediction **up** most are {pos_str}; "
-                f"the features pulling it **down** most are {neg_str}."
-            )
-
-            fig2, ax2 = plt.subplots(figsize=(9, 5))
-            drivers = shap_result["top_positive"][::-1] + shap_result["top_negative"]
-            features = [d["feature"] for d in drivers]
-            values = [d["shap_value"] for d in drivers]
-            bar_colors = [TIER_COLOR["green"] if v >= 0 else TIER_COLOR["red"] for v in values]
-            ax2.barh(features, values, color=bar_colors)
-            ax2.axvline(0, color="black", linewidth=0.8)
-            ax2.set_xlabel("SHAP value (impact on prediction in %)")
-            ax2.set_title(
-                f"Top drivers -- {shap_result['outcome']} yr{shap_result['year']} "
-                f"(tier: {shap_result['tier'].upper()})"
-            )
-            plt.tight_layout()
-            st.pyplot(fig2)
-            plt.close(fig2)
-
-            st.markdown(
-                f"**Base value:** {base_val:.2f}% (population mean for "
-                f"{shap_result['outcome']} yr{shap_result['year']})"
-            )
-            if MODEL_PERFORMANCE[shap_result["outcome"]][shap_result["year"]]["best_model"] == "SVR":
-                st.caption("KernelExplainer used (SVR model) -- SHAP values are approximate.")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Tab 6: Summary card + download
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_summary:
@@ -1044,7 +948,6 @@ with tab_summary:
             pass
 
     risk_sum = assess_preop_risk(patient["Preop_TBWL"])
-    shap_for_card = st.session_state.get("shap_result")
 
     c1, c2, c3 = st.columns(3)
     yr2_pt_s = traj["TBWL"][2]["point"]
@@ -1055,17 +958,8 @@ with tab_summary:
         f"Cluster {summary_pheno_id} of {summary_pheno_k}" if summary_pheno_id is not None else "N/A",
     )
 
-    if shap_for_card:
-        top_drv = shap_for_card.get("top_positive", [])[:3]
-        if top_drv:
-            st.caption(f"SHAP top drivers: {', '.join(d['feature'] for d in top_drv)}")
-    else:
-        st.caption(
-            "Tip: run SHAP Drivers first to include top predictive features in the summary card."
-        )
-
     html_card = _generate_summary_html(
-        patient, traj, summary_pheno_id, risk_sum, shap_for_card,
+        patient, traj, summary_pheno_id, risk_sum,
         pheno_short=summary_pheno_short, pheno_desc=summary_pheno_desc,
     )
 

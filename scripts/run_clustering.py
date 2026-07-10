@@ -16,12 +16,23 @@ def main():
     print(f"Fitting 1A-aligned phenotypes on N={len(df)} (keep-first deduped)...")
     bundle = fit_phenotypes(df)
 
+    sil = bundle["silhouette_by_k"]
+    argmax_k = max(sil, key=sil.get)
     print("\nk : silhouette (UMAP embedding)")
-    for k, s in bundle["silhouette_by_k"].items():
-        mark = "  <- selected (argmax)" if k == bundle["k"] else ""
-        print(f"{k:>2} : {s:.4f}{mark}")
+    for k, s in sil.items():
+        marks = []
+        if k == argmax_k:
+            marks.append("argmax")
+        if k == bundle["k"]:
+            marks.append("selected")
+        tag = f"  <- {'/'.join(marks)}" if marks else ""
+        print(f"{k:>2} : {s:.4f}{tag}")
 
-    print(f"\nAuto-selected k={bundle['k']} on {bundle['n_train']} patients.")
+    if bundle["k"] != argmax_k:
+        print(f"\nSelected k={bundle['k']} (1A manuscript) — within {sil[argmax_k]-sil[bundle['k']]:.4f} "
+              f"of the silhouette argmax k={argmax_k} (a tie); see phenotype.choose_k.")
+    else:
+        print(f"\nAuto-selected k={bundle['k']} (silhouette argmax) on {bundle['n_train']} patients.")
     print("\nPer-cluster mean ACTUAL TBWL% by year (ordered by ascending Preop_TBWL):")
     hdr = "cluster    n   " + "  ".join(f"yr{y}" for y in range(1, 7))
     print(hdr)

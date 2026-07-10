@@ -92,7 +92,7 @@ class TestRunAgent(unittest.TestCase):
 
         call_kwargs = mock_client.messages.create.call_args.kwargs
         tool_names = {t["name"] for t in call_kwargs["tools"]}
-        expected = {"predict_trajectory", "assign_phenotype", "explain_with_shap",
+        expected = {"predict_trajectory", "assign_phenotype",
                     "assess_preop_risk", "what_if_analysis"}
         self.assertEqual(tool_names, expected)
 

@@ -177,3 +177,23 @@ One line per modeling choice. This is what makes the work defensible + publishab
   crash. `UMAP.transform` JIT-compiles via numba, which cannot parse Python 3.14 bytecode
   (`CALL_KW`) on Streamlit Cloud -> IndexError. UMAP is now imported lazily inside `fit_phenotypes`
   only; verified `assign_phenotype` succeeds with `umap`/`numba` imports blocked.
+- 2026-07-10  RANDOM-FOREST-ONLY pivot (1A alignment; Ioanna's 2026-07-10 instruction: "use only
+  Random Forest models, as this was the best-performing approach; cluster on the RF predictions;
+  skip all SHAP"). Changes: (a) MODEL_PERFORMANCE re-based to RandomForest's own S5 rows for all
+  12 outcome-years — reliability tiers now describe the shipped model. Net tier change: TBWL yr5
+  amber→RED (SVR gave R²=0.259 but RF=0.064) → the tool now refuses a yr5 TBWL point. (b)
+  reproduce_models + train_direct_models estimators reduced to RandomForest only (removed GB/SVR/
+  XGBoost/HGB/Ridge, the SVR scaler+background path, and the CV scaling pipeline); direct-model
+  feature-set selection (F15 vs Fexp) retained. Retrained all 12 cascade models + 8 direct models
+  on the keep-first-deduped N=786. All gates pass. (c) Green-tier gate refined: passes if within
+  ΔR²<0.05 of S5 OR the honest CV still reaches green-tier R²≥0.40 — because S5's RF numbers carry
+  Ioanna's confirmed mild train/test leakage (slightly high) and dedup trims N; e.g. FML yr2 CV
+  0.406 vs S5 0.479 now PASS (still independently green), not a broken pipeline. (d) SHAP removed
+  entirely: deleted src/explain.py, tests/test_explain.py, scripts/sanitize_artifacts.py, the app
+  SHAP tab, the agent SHAP tool, and all scaler/background artifacts. Predictions elsewhere
+  unchanged in structure.
+- 2026-07-10  Clustering k: on the RF trajectories the silhouette peak moved to k=4 (0.7165) with
+  k=5 tied at 0.7163 (Δ0.0002). Added phenotype.choose_k: silhouette argmax, tie-broken to the 1A
+  manuscript k=5 when within K_TIE=0.02 (Ioanna confirmed 5 is intended and fixing it is fine).
+  Result: k=5, cluster sizes 53/312/98/222/101, ordered by ascending Preop_TBWL. run_clustering
+  prints the full curve and flags the tie-break, so the choice stays transparent, not hard-coded.

@@ -33,11 +33,9 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor, HistGradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
-from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
-from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -77,16 +75,13 @@ TARGET_YEARS = {
 
 
 def _estimators() -> dict:
+    # RandomForest only (1A manuscript primary). Feature-set selection (F15 vs Fexp)
+    # is retained; model family is not.
     return {
         "RF": RandomForestRegressor(
             n_estimators=300, random_state=SEED, n_jobs=-1,
             min_samples_leaf=5, max_features=0.5,
         ),
-        "HGB": HistGradientBoostingRegressor(
-            random_state=SEED, learning_rate=0.06, max_iter=300,
-            min_samples_leaf=20, l2_regularization=1.0,
-        ),
-        "Ridge": Ridge(alpha=10.0, random_state=SEED),
     }
 
 
@@ -121,9 +116,6 @@ def _oof_direct(df, target_col, feature_cols, est_name):
 
         X_tr, X_te = X_tr_df.values.astype(float), X_te_df.values.astype(float)
         est = _estimators()[est_name]
-        if est_name == "Ridge":
-            sc = StandardScaler()
-            X_tr, X_te = sc.fit_transform(X_tr), sc.transform(X_te)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             est.fit(X_tr, y[tr])
@@ -193,10 +185,7 @@ def main() -> None:
         X = X_df.values.astype(float)
 
         est = _estimators()[best["est"]]
-        scaler = None
-        if best["est"] == "Ridge":
-            scaler = StandardScaler()
-            X = scaler.fit_transform(X)
+        scaler = None  # RF is scale-invariant; kept for meta-schema compatibility
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             est.fit(X, y)

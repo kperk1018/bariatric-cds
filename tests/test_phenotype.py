@@ -1,7 +1,8 @@
 """Tests for src/phenotype.py — 1A-aligned clustering (UMAP + silhouette-derived k).
 
 Uses a tiny synthetic cohort and a stub predict_trajectory so no real CSV or
-trained models are needed. k is derived by silhouette, never hard-coded.
+trained models are needed. k is derived by silhouette (with a documented tie-break
+to the 1A manuscript k=5 when it's within noise of the peak), never blindly forced.
 """
 import unittest
 from unittest.mock import patch
@@ -45,8 +46,8 @@ class TestPhenotypeClustering(unittest.TestCase):
         with patch("src.predict.predict_trajectory", side_effect=_stub_predict):
             bundle = phe.fit_phenotypes(df, save=False)
         self.assertIn(bundle["k"], set(phe.K_RANGE))          # k came from the sweep
-        self.assertEqual(bundle["k"], max(bundle["silhouette_by_k"],
-                                          key=bundle["silhouette_by_k"].get))
+        # k follows choose_k: silhouette argmax, tie-broken toward the manuscript k
+        self.assertEqual(bundle["k"], phe.choose_k(bundle["silhouette_by_k"]))
         self.assertEqual(bundle["n_train"], len(df))
         # clusters ordered by ascending mean Preop_TBWL (label 0 = lowest)
         self.assertEqual(set(bundle["remap"].values()), set(range(bundle["k"])))

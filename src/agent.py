@@ -33,7 +33,6 @@ import anthropic
 from src.config import ARTIFACTS
 from src.predict import predict_trajectory
 from src.phenotype import assign_phenotype
-from src.explain import explain_with_shap
 from src.risk import assess_preop_risk
 from src.what_if import what_if_analysis
 
@@ -118,23 +117,6 @@ _TOOL_SCHEMAS = [
         },
     },
     {
-        "name": "explain_with_shap",
-        "description": (
-            "Return top SHAP feature drivers for a prediction. "
-            "Only works for non-red reliability years; raises an error for red years."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "patient": {"type": "object", "description": "15-feature de-identified patient dict."},
-                "outcome": {"type": "string", "enum": ["TBWL", "FML"]},
-                "year": {"type": "integer", "minimum": 1, "maximum": 6},
-                "top_n": {"type": "integer", "default": 5, "minimum": 1, "maximum": 15},
-            },
-            "required": ["patient", "outcome", "year"],
-        },
-    },
-    {
         "name": "assess_preop_risk",
         "description": (
             "Flag whether PreopTBWL% is below the 10.5% threshold associated with worse long-term outcomes. "
@@ -194,9 +176,6 @@ def _dispatch_tool(name: str, inputs: dict, patient: dict | None) -> object:
     dispatch = {
         "predict_trajectory":  lambda inp: predict_trajectory(_patient(inp)),
         "assign_phenotype":    lambda inp: assign_phenotype(inp["patient"]),
-        "explain_with_shap":   lambda inp: explain_with_shap(
-            _patient(inp), inp["outcome"], inp["year"], inp.get("top_n", 5)
-        ),
         "assess_preop_risk":   lambda inp: assess_preop_risk(inp["preop_tbwl_pct"]),
         "what_if_analysis":    lambda inp: what_if_analysis(
             _patient(inp), inp["modified_features"]

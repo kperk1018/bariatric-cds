@@ -44,6 +44,8 @@ CLUSTER_TRAJ_YEARS = [1, 2, 3, 4, 5]          # non-red TBWL years used for clus
 CAT_COLS = ["Sex", "Race", "Surgery_Type"]
 PREOP_NUM = [c for c in BASELINE_FEATURES if c not in CAT_COLS]
 K_RANGE = range(2, 11)                          # k swept; argmax silhouette selected
+MANUSCRIPT_K = 5                                # 1A reports 5 clusters (Ioanna, S7)
+K_TIE = 0.02                                    # silhouette gap counted as "tied"
 UMAP_KW = dict(n_components=2, random_state=SEED, n_neighbors=8, min_dist=0.15)
 KMEANS_KW = dict(n_init=10, random_state=SEED)
 _MODEL_PATH = ARTIFACTS / "phenotype_kmeans.joblib"
@@ -89,6 +91,22 @@ def select_k(X: np.ndarray) -> tuple[int, dict[int, float]]:
     return max(sil, key=sil.get), sil
 
 
+def choose_k(sil: dict[int, float]) -> int:
+    """Silhouette-selected k, with a tie-break toward the 1A manuscript k.
+
+    The silhouette peak and MANUSCRIPT_K are frequently within noise of each other
+    (on the RF trajectories, k=4 and k=5 differ by ~0.0002). When MANUSCRIPT_K is
+    within K_TIE of the argmax we report MANUSCRIPT_K, so 1B matches 1A's 5 clusters
+    without hard-coding — Ioanna confirmed 5 is the intended count and that fixing it
+    is acceptable. When the data clearly prefers a different k (> K_TIE better), that
+    k wins and the divergence is surfaced.
+    """
+    argmax_k = max(sil, key=sil.get)
+    if MANUSCRIPT_K in sil and (sil[argmax_k] - sil[MANUSCRIPT_K]) <= K_TIE:
+        return MANUSCRIPT_K
+    return argmax_k
+
+
 def fit_phenotypes(df: pd.DataFrame, save: bool = True) -> dict:
     """Fit the 1A-aligned phenotype pipeline on the cohort and persist it."""
     df = df.reset_index(drop=True)
@@ -107,7 +125,8 @@ def fit_phenotypes(df: pd.DataFrame, save: bool = True) -> dict:
     reducer = umap.UMAP(**UMAP_KW)
     Xu = reducer.fit_transform(Xs)
 
-    chosen_k, silhouette_by_k = select_k(Xu)
+    _, silhouette_by_k = select_k(Xu)
+    chosen_k = choose_k(silhouette_by_k)
     kmeans = KMeans(n_clusters=chosen_k, **KMEANS_KW).fit(Xu)
     raw_labels = kmeans.labels_
 

@@ -56,24 +56,29 @@ LAGGED_FML_BY_YEAR: dict[int, list[str]] = {
     6: ["5yr_Postop_FMLpct"],
 }
 
-# --- S5: best-model R² (and RMSE) per outcome/year. Source of the gating. ---
+# --- S5: per-year model performance (R², RMSE). Source of the reliability gating. ---
 # tier thresholds: green R² >= 0.40 ; amber 0.20-0.40 ; red < 0.20
+# RANDOM FOREST across all years (1A manuscript primary — Ioanna, 2026-07-10:
+# "use only Random Forest models, as this was the best-performing approach").
+# Values are RandomForest's own rows from Supplementary Table S5 (not the per-year
+# best model), so the tiers describe the model we actually ship. Consequence vs the
+# old best-model gating: TBWL yr5 was amber under SVR (0.259) but RF is 0.064 → RED.
 MODEL_PERFORMANCE = {
     "TBWL": {
-        1: {"best_model": "RandomForest",     "r2": 0.262, "rmse": 8.29},
-        2: {"best_model": "RandomForest",     "r2": 0.524, "rmse": 7.88},
-        3: {"best_model": "GradientBoosting", "r2": 0.522, "rmse": 8.27},
-        4: {"best_model": "GradientBoosting", "r2": 0.459, "rmse": 8.73},
-        5: {"best_model": "SVR",              "r2": 0.259, "rmse": 11.70},
-        6: {"best_model": "GradientBoosting", "r2": 0.102, "rmse": 9.83},
+        1: {"best_model": "RandomForest", "r2": 0.262, "rmse": 8.29},
+        2: {"best_model": "RandomForest", "r2": 0.524, "rmse": 7.88},
+        3: {"best_model": "RandomForest", "r2": 0.474, "rmse": 8.64},
+        4: {"best_model": "RandomForest", "r2": 0.428, "rmse": 8.92},
+        5: {"best_model": "RandomForest", "r2": 0.064, "rmse": 13.08},
+        6: {"best_model": "RandomForest", "r2": 0.078, "rmse": 9.75},
     },
     "FML": {
-        1: {"best_model": "RandomForest",     "r2": 0.175, "rmse": 13.82},
-        2: {"best_model": "RandomForest",     "r2": 0.479, "rmse": 13.64},
-        3: {"best_model": "SVR",              "r2": 0.300, "rmse": 19.44},
-        4: {"best_model": "XGBoost",          "r2": 0.379, "rmse": 15.01},
-        5: {"best_model": "RandomForest",     "r2": 0.000, "rmse": 30.01},
-        6: {"best_model": "GradientBoosting", "r2": 0.000, "rmse": 12.21},
+        1: {"best_model": "RandomForest", "r2": 0.175, "rmse": 13.82},
+        2: {"best_model": "RandomForest", "r2": 0.479, "rmse": 13.64},
+        3: {"best_model": "RandomForest", "r2": 0.267, "rmse": 19.66},
+        4: {"best_model": "RandomForest", "r2": 0.294, "rmse": 15.66},
+        5: {"best_model": "RandomForest", "r2": 0.000, "rmse": 30.01},
+        6: {"best_model": "RandomForest", "r2": 0.000, "rmse": 12.06},
     },
 }
 

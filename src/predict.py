@@ -74,13 +74,6 @@ def _get_adopted_direct(outcome: str, year: int, calib: dict | None) -> dict | N
 
 _NUMERIC_COLS = get_numeric_cols(BASELINE_FEATURES)
 
-_SVR_OUTCOMES = {
-    (outcome, year)
-    for outcome, years in MODEL_PERFORMANCE.items()
-    for year, m in years.items()
-    if m["best_model"] == "SVR"
-}
-
 
 def _load_artifact(filename: str):
     if filename not in _MODEL_CACHE:
@@ -187,11 +180,7 @@ def predict_trajectory(
                         x[:, num_col_indices]
                     )
 
-                # Scale for SVR models
-                if (outcome, year) in _SVR_OUTCOMES:
-                    scaler = _load_artifact(f"{outcome}_yr{year}_scaler.joblib")
-                    x = scaler.transform(x)
-
+                # RandomForest is scale-invariant — no scaler step (SVR removed).
                 point = float(model.predict(x)[0])
 
             rmse = MODEL_PERFORMANCE[outcome][year]["rmse"]

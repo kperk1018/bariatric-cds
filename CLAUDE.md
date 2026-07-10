@@ -39,11 +39,17 @@ makes this diagnostic or prescriptive.
 - Outcome columns follow `{n}yr_Postop_{Metric}`, e.g. `3yr_Postop_TBWL`,
   `2yr_Postop_FML%`. Baseline in `src/config.py`.
 
+## Model choice — RANDOM FOREST ONLY (1A alignment; Ioanna 2026-07-10)
+Manuscript uses Random Forest for all years and all outcomes ("best-performing
+approach"). Do NOT reintroduce per-year best-model selection, SVR/GB/XGBoost, or
+mixed families. Clustering trajectories come from these RF predictions. SHAP is
+removed entirely (she asked to skip it — keeps the paper lean for reviewers).
+
 ## Reliability gating (from Supplementary Table S5 — non-negotiable)
-Best-model R² by year drives a green/amber/red tier. The tool MUST surface this and
-MUST refuse point predictions in red years. Values + tiers live in `src/config.py`
-(`MODEL_PERFORMANCE`) and are applied by `src/reliability.py`.
-- TBWL: yr1 amber, yr2-4 green, yr5 amber, yr6 red.
+RandomForest's R² by year (S5's RF rows) drives a green/amber/red tier. The tool MUST
+surface this and MUST refuse point predictions in red years. Values + tiers live in
+`src/config.py` (`MODEL_PERFORMANCE`) and are applied by `src/reliability.py`.
+- TBWL: yr1 amber, yr2-4 green, **yr5 red** (RF R²=0.064; was amber only under SVR), yr6 red.
 - FML%: yr1 red, yr2 green, yr3-4 amber, yr5-6 red.
 
 ## Preop threshold rule
