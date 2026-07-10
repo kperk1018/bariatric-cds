@@ -13,9 +13,21 @@ was not provided:
 Both offline fit and online assignment use the SAME trajectory source, so a new
 patient is placed consistently with the cohort.
 
-`fit_phenotypes` persists one frozen bundle (imputer, scaler, UMAP reducer, KMeans,
-cluster order, per-cluster actual-TBWL trajectory means, silhouette curve).
-`assign_phenotype` transforms a new patient through that frozen bundle.
+ONLINE ASSIGNMENT DOES NOT USE UMAP. Two reasons:
+  1. PRIVACY (hard rule): a fitted `umap.UMAP` retains `_raw_data` — the full scaled
+     training matrix — which, together with the persisted scaler, is invertible back
+     to row-level patient values. Persisting it put patient data in git. Never again.
+  2. PORTABILITY: `UMAP.transform` JIT-compiles via numba, which fails on Python 3.14
+     (Streamlit Cloud), crashing the deployed app.
+Instead, after clustering we fit a multinomial LogisticRegression on the SCALED
+feature space to reproduce the final cluster labels. It recovers them essentially
+exactly (100% train, 99.1% 5-fold CV agreement) and persists only a k x n_features
+coefficient matrix — an aggregate, no patient rows. UMAP is still used to FIT
+(matching 1A), it is simply never persisted or called at inference.
+
+`fit_phenotypes` persists one frozen bundle (imputer, scaler, label assigner, cluster
+order, per-cluster actual-TBWL trajectory means, silhouette curve). `assign_phenotype`
+transforms a new patient through that frozen bundle.
 """
 import joblib
 import numpy as np
@@ -23,8 +35,8 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.cluster import KMeans
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import silhouette_score
-import umap
 
 from src.config import ARTIFACTS, BASELINE_FEATURES, TBWL_BY_YEAR, SEED
 
@@ -88,6 +100,10 @@ def fit_phenotypes(df: pd.DataFrame, save: bool = True) -> dict:
     Xi = imputer.fit_transform(X)
     scaler = StandardScaler()
     Xs = scaler.fit_transform(Xi)
+
+    # UMAP is used to FIT only (matches 1A). It is never persisted — a fitted
+    # reducer retains the raw training matrix (see module docstring).
+    import umap  # local import: keeps numba/umap off the inference + app path
     reducer = umap.UMAP(**UMAP_KW)
     Xu = reducer.fit_transform(Xs)
 
@@ -115,13 +131,20 @@ def fit_phenotypes(df: pd.DataFrame, save: bool = True) -> dict:
                                    "n": int(len(vals))}
         cluster_actual_traj[c] = {"per_year": per_year, "n": int((labels == c).sum())}
 
+    # Online assigner: reproduce the final labels from the SCALED space, so inference
+    # needs neither UMAP nor any stored patient row. Persists coefficients only.
+    assigner = LogisticRegression(max_iter=2000, random_state=SEED).fit(Xs, labels)
+    assigner_agreement = float((assigner.predict(Xs) == labels).mean())
+
     bundle = {
-        "imputer": imputer, "scaler": scaler, "reducer": reducer, "kmeans": kmeans,
+        "imputer": imputer, "scaler": scaler, "assigner": assigner,
         "remap": remap, "columns": columns, "k": chosen_k,
+        "assigner_agreement": assigner_agreement,
         "silhouette_by_k": silhouette_by_k, "n_train": len(df),
         "traj_years": CLUSTER_TRAJ_YEARS, "cluster_actual_traj": cluster_actual_traj,
         "method": "1A-aligned: preop+predicted-TBWL -> UMAP -> silhouette-k -> KMeans, "
-                  "ordered by ascending Preop_TBWL",
+                  "ordered by ascending Preop_TBWL; online assignment via "
+                  "LogisticRegression on the scaled features (no UMAP, no stored rows)",
     }
     if save:
         ARTIFACTS.mkdir(exist_ok=True)
@@ -151,10 +174,11 @@ def assign_phenotype(patient: dict, traj: dict | None = None,
 
     Xi = bundle["imputer"].transform(X)
     Xs = bundle["scaler"].transform(Xi)
-    Xu = bundle["reducer"].transform(Xs)
-    raw = int(bundle["kmeans"].predict(Xu)[0])
+    # assigner predicts the FINAL (Preop_TBWL-ordered) label directly — no remap,
+    # no UMAP transform (see module docstring: privacy + numba/py3.14 portability).
+    label = int(bundle["assigner"].predict(Xs)[0])
     return {
-        "phenotype": bundle["remap"][raw],
+        "phenotype": label,
         "k": bundle["k"],
         "n_train": bundle["n_train"],
         "note": "Provisional — 1A-aligned clustering (UMAP+silhouette), pending mentor confirmation.",

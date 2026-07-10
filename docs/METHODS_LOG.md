@@ -156,3 +156,24 @@ One line per modeling choice. This is what makes the work defensible + publishab
   stores imputer/scaler/UMAP/KMeans/order/silhouette-curve/per-cluster actual-TBWL means.
   New dependency: umap-learn. Methodological caveats from BENCHMARK (clustering on a UMAP
   embedding; in-sample vs preop predictions) still apply and are noted for the manuscript.
+- 2026-07-10  SECURITY/PRIVACY REMEDIATION — row-level patient data was committed to a public
+  repo. Root cause: `.gitignore` excluded `data/` but allowed `artifacts/*.joblib`, and three
+  artifacts embedded real patient rows: (a) `phenotype_kmeans.joblib` persisted a fitted
+  `umap.UMAP`, which retains `_raw_data` = the scaled 786x24 training matrix (plus `embedding_`,
+  786x2); (b) `TBWL_yr5_background.joblib` (42x20) and (c) `FML_yr3_background.joblib` (50x22)
+  stored random subsamples of real scaled rows as SHAP backgrounds. Each shipped alongside its
+  `StandardScaler`, making them invertible to actual patient values (age/height/BMI/weight/etc.).
+  Exposure: initial commit 2026-07-02 through 2026-07-10, repo public. No CSV was ever committed;
+  no direct identifiers (no ID/name/MRN/date) were exposed — but the features are quasi-identifiers.
+  Remediation: repo made private; UMAP reducer no longer persisted (online cluster assignment now
+  via a multinomial LogisticRegression on the scaled features — coefficients only, 5x24 —
+  reproducing the UMAP+KMeans labels at 100% train / 99.1% 5-fold CV agreement); SHAP backgrounds
+  replaced by k-means centroids (~10 patients averaged per centroid) via `scripts/sanitize_artifacts.py`
+  and, going forward, `_shap_background()` in reproduce_models.py; `tests/test_artifact_safety.py`
+  now fails if any artifact embeds a >=20-row 2-D array; CLAUDE.md hard rule added. Git history
+  purged of the 3 blobs and force-pushed. Predictions unchanged (models untouched); phenotype fit
+  unchanged (same k=5, same cluster sizes 55/316/98/218/99) — only what is persisted changed.
+- 2026-07-10  Side benefit: removing UMAP from the inference path also fixes the deployed Streamlit
+  crash. `UMAP.transform` JIT-compiles via numba, which cannot parse Python 3.14 bytecode
+  (`CALL_KW`) on Streamlit Cloud -> IndexError. UMAP is now imported lazily inside `fit_phenotypes`
+  only; verified `assign_phenotype` succeeds with `umap`/`numba` imports blocked.

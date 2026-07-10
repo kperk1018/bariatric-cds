@@ -50,7 +50,11 @@ class TestPhenotypeClustering(unittest.TestCase):
         self.assertEqual(bundle["n_train"], len(df))
         # clusters ordered by ascending mean Preop_TBWL (label 0 = lowest)
         self.assertEqual(set(bundle["remap"].values()), set(range(bundle["k"])))
-        self.assertIn("reducer", bundle)   # UMAP reducer persisted for online assign
+        # UMAP must NOT be persisted (retains _raw_data); online assignment uses a
+        # coefficient-only classifier on the scaled features instead.
+        self.assertNotIn("reducer", bundle)
+        self.assertIn("assigner", bundle)
+        self.assertGreaterEqual(bundle["assigner_agreement"], 0.90)
         self.assertIn("cluster_actual_traj", bundle)
 
     def test_assign_is_deterministic_and_returns_k(self):

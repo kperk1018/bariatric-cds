@@ -14,10 +14,18 @@ output states uncertainty and defers to the care team. Do not add anything that
 makes this diagnostic or prescriptive.
 
 ## Hard rules (do not violate)
-- **PHI stays out of `git` and out of the LLM.** `data/` and `artifacts/` are
-  gitignored. Never commit the CSV. The agent's tools run models **locally**; only
-  derived outputs (predicted %, cluster id, driver names) may go to the LLM. Never
-  pass raw patient rows or `ID` to the Anthropic API.
+- **PHI stays out of `git` and out of the LLM.** `data/` is gitignored. Never commit
+  the CSV. The agent's tools run models **locally**; only derived outputs (predicted %,
+  cluster id, driver names) may go to the LLM. Never pass raw patient rows or `ID` to
+  the Anthropic API.
+- **Committed artifacts must contain only AGGREGATES — never row-level patient data.**
+  `artifacts/*.joblib` are committed so the hosted app can load models. Model weights,
+  scalers (mean/scale), imputer medians, k-means centroids, and regression coefficients
+  are fine. A fitted `umap.UMAP` (retains `_raw_data`), a KNN/SVC (retains training
+  rows), or a SHAP background of real rows are NOT — with the co-committed scaler they
+  invert straight back to patient values. `tests/test_artifact_safety.py` enforces this;
+  it must stay green. (This rule exists because we shipped exactly that leak — see the
+  2026-07-10 entry in `docs/METHODS_LOG.md`.)
 - **`ID` is a study id, not an MRN.** If that ever changes, stop and re-de-identify.
 - Fix random seeds everywhere (`random_state=42`). Results must reproduce.
 - Every modeling choice gets one line in `docs/METHODS_LOG.md`. This is a research

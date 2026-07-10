@@ -19,6 +19,7 @@ Artifacts written per model:
 import sys
 import numpy as np
 import joblib
+from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.svm import SVR
 from sklearn.impute import SimpleImputer
@@ -84,6 +85,19 @@ def _make_estimator(outcome: str, year: int, n_train: int = 999):
 
 def _needs_scaling(outcome: str, year: int) -> bool:
     return MODEL_PERFORMANCE[outcome][year]["best_model"] == "SVR"
+
+
+def _shap_background(X_scaled: np.ndarray, per_centroid: int = 10) -> np.ndarray:
+    """Aggregate SHAP background: k-means centroids of the scaled training data.
+
+    Persisting a random subsample of real rows would put row-level patient data in
+    the artifact (and, with the scaler, invert back to real values). Centroids are
+    means over ~`per_centroid` patients each — aggregates, safe to commit.
+    """
+    n = len(X_scaled)
+    k = max(2, min(SHAP_BG_SIZE, n // per_centroid))
+    km = KMeans(n_clusters=k, n_init=10, random_state=SEED).fit(X_scaled)
+    return km.cluster_centers_
 
 
 def _cv_scores(estimator, X: np.ndarray, y: np.ndarray, scale: bool) -> tuple[float, float]:
@@ -201,10 +215,11 @@ def main() -> None:
                 X_scaled = scaler.fit_transform(X)
                 estimator.fit(X_scaled, y)
                 joblib.dump(scaler, ARTIFACTS / f"{outcome}_yr{year}_scaler.joblib")
-                # SHAP background: random subsample of scaled training data
-                rng = np.random.default_rng(SEED)
-                bg_idx = rng.choice(n_train, size=min(SHAP_BG_SIZE, n_train), replace=False)
-                joblib.dump(X_scaled[bg_idx],
+                # SHAP background: k-means CENTROIDS of the scaled training data.
+                # NEVER persist raw rows — a subsample of real patients is row-level
+                # data and, with the scaler above, invertible to actual values.
+                # Centroids are aggregates (each averages ~10 patients).
+                joblib.dump(_shap_background(X_scaled),
                             ARTIFACTS / f"{outcome}_yr{year}_background.joblib")
             else:
                 estimator.fit(X, y)
