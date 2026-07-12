@@ -2,9 +2,9 @@
 data/*
 !data/.gitkeep
 
-# Ioanna's 1A materials — ignored until reviewed for PHI, then selectively un-ignore clean code
-reference/ioanna/*
-!reference/ioanna/README.md
+# Ioanna's 1A materials + our alignment reports — NEVER commit. References her
+# unpublished manuscript and her dataset's flaws; repo is public.
+reference/
 
 # Artifacts: model weights are safe to commit (no PHI); exclude only raw data files
 artifacts/*
