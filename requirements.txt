@@ -1,13 +1,13 @@
+# Runtime deps for the deployed Streamlit app (app/streamlit_app.py) ONLY.
+# Kept minimal so the hosted build stays fast and portable. In particular this
+# must NOT list umap-learn/numba: they fail to build on Streamlit Cloud's Python
+# 3.14, and the app never needs them — UMAP is used only to FIT the phenotype
+# model locally; the deployed app loads the already-fit bundle (a logistic-
+# regression assigner, no UMAP). Training/dev deps live in requirements-dev.txt.
+streamlit
 pandas
 numpy
 scikit-learn
+scipy
 joblib
 matplotlib
-shap
-streamlit
-pytest
-xgboost
-anthropic
-scipy
-statsmodels
-umap-learn

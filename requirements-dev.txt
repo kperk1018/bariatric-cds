@@ -1,0 +1,8 @@
+# Local development / training / testing deps. NOT installed on Streamlit Cloud.
+# Includes the runtime set plus the heavy fit-time libraries (umap-learn pulls in
+# numba — local Python <= 3.13 only) and the test/agent extras.
+-r requirements.txt
+umap-learn
+statsmodels
+anthropic
+pytest
