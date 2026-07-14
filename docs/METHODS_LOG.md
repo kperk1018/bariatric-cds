@@ -221,3 +221,11 @@ One line per modeling choice. This is what makes the work defensible + publishab
   (e) Presentation figures: attrition flow added and placed BEFORE the metrics; n-per-point shown on
   the phenotype trajectories (Ioanna challenged two yr6 values — both rest on n=3); the 10.5% preop
   threshold drawn with sub-threshold phenotypes dashed; the 15 preop fields named explicitly.
+- 2026-07-14  DECISION (clustering primary analysis): the 1A-aligned recipe (preop features +
+  predicted TBWL trajectories -> UMAP -> silhouette-k -> k-means, ordered by Preop_TBWL) remains the
+  PRIMARY analysis for manuscript 1B, to preserve direct comparability with 1A. The trajectory-shape-
+  only clustering is reported as a SENSITIVITY analysis. The demographic dominance (98% of cluster
+  membership predictable from sex + procedure + race) is stated in the Results, not buried in the
+  Discussion, and framed as a finding: "trajectory phenotypes in this cohort are largely determined
+  by procedure, sex and race." Rationale: 1B's novel contribution is the clinical tool, not a new
+  phenotype definition; disclosure beats redefining a method that must stay comparable to 1A.

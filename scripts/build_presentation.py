@@ -286,53 +286,59 @@ essentially the same answer.
 NOW LOOK AT THE RACE ROWS ON THE HEATMAP — and go straight to the next slide before anyone else
 gets there.""")
 
-    # 9 ── THE HONEST SLIDE (now with race)
+    # 9 ── The finding (reframed: a result, not a confession)
     s = prs.slides.add_slide(B)
-    _title(s, "Are these trajectory phenotypes — or just procedure, sex and race?",
-           "Ioanna predicted race was the missing variable. She was right — and it is worse than we thought.")
+    _title(s, "Finding: the phenotypes are largely determined by procedure, sex and race",
+           "Ioanna predicted race was the missing variable — she was right. We report it, rather than wait for a reviewer to find it.")
     _pic(s, "fig8_sensitivity.png", 0.35, 1.5, 12.6)
     _bul(s, [
-        ("With sex + procedure alone, 71% of phenotype membership is predictable. ADD RACE AND IT IS "
-         "98%. The five 'phenotypes' are: Revision women / Hispanic sleeve women / Bypass women / "
-         "White sleeve women / Men.", True, RED),
-        ("Clustering on trajectory SHAPE alone drops this to 44% (47% with race) and produces a true "
-         "poor→strong responder gradient. Proposal: make trajectory-shape the primary analysis, and "
-         "report the 1A-aligned version as the comparability arm.", True, GREEN),
-    ], y=5.45, size=11.5)
+        ("98% of phenotype membership is predictable from sex + procedure + race alone (71% without "
+         "race). The five groups are: Revision women / Hispanic sleeve women / Bypass women / White "
+         "sleeve women / Men. Bypass genuinely loses more weight — that part is real clinical signal.",
+         True, RED),
+        ("Clustering on trajectory SHAPE alone drops this to 44% (47% with race) and reveals a genuine "
+         "poor→strong responder gradient.", True, GREEN),
+        ("DECISION: the 1A-aligned clustering stays PRIMARY (comparability with manuscript 1A). "
+         "Trajectory-shape is reported as a sensitivity analysis, and the demographic dominance is "
+         "stated in the Results — not buried in the Discussion.", True, NAVY),
+    ], y=5.4, size=11),
     _notes(s, """*** THE MOST IMPORTANT SLIDE. RAISE IT YOURSELF, BEFORE ANYONE ELSE. ***
 
-IOANNA PREDICTED THIS. She said: "I think race is what's happening... two of my classes are
-basically 55% white / 45% Hispanic and 56% Hispanic / 44% white." She asked you to add race. You
-did — and it is starker than hers.
+FRAME IT AS A RESULT, NOT A CONFESSION. Say:
+"Trajectory phenotypes in this cohort are largely determined by procedure, sex and race — 98% of
+cluster membership is predictable from those three variables alone. When we cluster on trajectory
+shape independent of demographics, a genuine responder gradient emerges."
+
+That is a legitimate, clinically interesting, publishable statement. It is also bulletproof against
+the reviewer who would otherwise "discover" it.
+
+IOANNA PREDICTED THIS. She said: "I think race is what's happening... two of my classes are 55%
+white / 45% Hispanic and 56% Hispanic / 44% white." She asked you to add race. You did.
 
 THE NUMBERS:
-  sex + procedure         -> 71% of cluster membership predictable
-  sex + procedure + RACE  -> 98%  (!!)
+  sex + procedure         -> 71% predictable
+  sex + procedure + RACE  -> 98%
+  trajectory-shape only   -> 44% (47% with race)  <- barely moves, so it IS trajectory-driven
 
 WHAT THE FIVE CLUSTERS ACTUALLY ARE:
-  1. Revision women            2. Hispanic sleeve women (91% Hispanic)
-  3. Bypass women              4. White sleeve women (98% White)
-  5. Men
+  1. Revision women      2. Hispanic sleeve women (91% Hispanic)     3. Bypass women
+  4. White sleeve women (98% White)                                  5. Men
+Phenotypes 2 and 4 are the same operation and same sex — split by RACE.
 
-Phenotypes 2 and 4 — the only pair I previously thought was a genuine trajectory split — are a
-RACE split. Same operation, same sex, different race.
+WHY IT HAPPENS: sex, procedure and race go into the clustering as 0/1 flags alongside the
+trajectory. They separate patients so cleanly that the algorithm latches onto them and ignores the
+subtler curve shape.
 
-WHY: sex, procedure and race are fed into the clustering as 0/1 flags alongside the trajectory.
-They separate patients so cleanly that the algorithm latches onto them and ignores the subtler
-curve shape.
+BE FAIR: the residual Bypass link is CLINICALLY REAL — bypass patients do lose more weight. Signal,
+not artefact.
 
-THE FIX (panel C): cluster on trajectory shape ALONE. Predictability drops to 44%, and adding race
-barely moves it (47%) — proof it is genuinely trajectory-driven. And you get a real gradient: poor
-responders (24% falling to 14%) up to strong responders (holding ~40%).
+THE DECISION AND WHY (own this):
+"We keep the 1A-aligned clustering as primary so that 1B remains directly comparable to 1A, and we
+report trajectory-shape as a sensitivity analysis. This paper's contribution is the tool, not a new
+phenotype definition — so the right move is to disclose clearly rather than redefine the method."
 
-BE CAREFUL AND FAIR: the residual link to Bypass is CLINICALLY REAL — bypass patients do lose more.
-That is signal, not artefact.
-
-THE RISK IF WE DO NOTHING: a reviewer will say "your phenotypes are racial groups." That is not a
-survivable comment. Better we find it.
-
-TONE WITH IOANNA: collaborative. Her 1A uses the same recipe, so her clusters very likely share
-this. This finding strengthens BOTH papers.""")
+FOR IOANNA (she is mid-revision on 1A): her clusters use the same recipe and very likely share this
+property. Tell her now, collaboratively — it protects both papers.""")
 
     # 10 ── Mechanism + next
     s = prs.slides.add_slide(B)
