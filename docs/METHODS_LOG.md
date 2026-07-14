@@ -197,3 +197,27 @@ One line per modeling choice. This is what makes the work defensible + publishab
   manuscript k=5 when within K_TIE=0.02 (Ioanna confirmed 5 is intended and fixing it is fine).
   Result: k=5, cluster sizes 53/312/98/222/101, ordered by ascending Preop_TBWL. run_clustering
   prints the full curve and flags the tie-break, so the choice stays transparent, not hard-coded.
+- 2026-07-14  Post-review changes from Ioanna's 2026-07-13 meeting.
+  (a) AUC added alongside R² (scripts/compare_rf_gb.py). Computed as 1A does: dichotomise the
+  outcome at the TRAINING median, then score how well the regressor's continuous prediction ranks
+  test patients — a ranking metric, labelled as such, not a classifier AUC. RandomForest TBWL AUC:
+  0.74/0.90/0.91/0.95 for yrs 1-4.
+  (b) RF vs GradientBoosting head-to-head on our deduped, leakage-safe data (artifacts/rf_vs_gb.csv).
+  GB genuinely beats RF at yr3 (R² 0.698 vs 0.608) and ties at yr4 (0.723 vs 0.725) — reported
+  honestly — but COLLAPSES at yr5 (R² -3.804 vs RF -0.346) and has lower mean AUC (0.748 vs 0.795).
+  Since a single model must serve all years for the k-means clustering (the reviewer's own argument
+  to Ioanna: mixing models across years imports nonlinearities), RF is selected for CONSISTENCY.
+  RF remains the deployed/app model; GB is reported for the paper.
+  (c) CLUSTER_TRAJ_YEARS fixed to [1,2,3,4]: under RF-only, TBWL yr5 is RED, so predict_trajectory
+  returns None and the yr5 clustering feature was an all-NaN, zero-variance dead column. Removing it
+  is a no-op numerically (identical k=5, identical cluster sizes) but the code is now correct.
+  (d) RACE added to the cluster demographics and to the sensitivity check — at Ioanna's request, and
+  it is the key finding: cluster membership is 71% predictable from sex+procedure, and 98% from
+  sex+procedure+RACE. The five "phenotypes" are Revision-women / Hispanic-sleeve-women (91% Hispanic)
+  / Bypass-women / White-sleeve-women (98% White) / Men. Clustering on trajectory SHAPE alone drops
+  this to 44% (47% with race) and yields a genuine poor→strong responder gradient. The 1A recipe's
+  phenotypes are therefore demographic strata, not trajectory phenotypes. Proposal pending: make
+  trajectory-shape the primary analysis and keep the 1A-aligned version as the comparability arm.
+  (e) Presentation figures: attrition flow added and placed BEFORE the metrics; n-per-point shown on
+  the phenotype trajectories (Ioanna challenged two yr6 values — both rest on n=3); the 10.5% preop
+  threshold drawn with sub-threshold phenotypes dashed; the 15 preop fields named explicitly.

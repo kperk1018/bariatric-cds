@@ -40,7 +40,11 @@ from sklearn.metrics import silhouette_score
 
 from src.config import ARTIFACTS, BASELINE_FEATURES, TBWL_BY_YEAR, SEED
 
-CLUSTER_TRAJ_YEARS = [1, 2, 3, 4, 5]          # non-red TBWL years used for clustering
+# TBWL years used as clustering features. Must be NON-RED years only: a red year has
+# no prediction (predict_trajectory returns None), so including it injects an all-NaN
+# column. Under RandomForest-only, TBWL yr5 became RED (R²=0.064) — it was silently
+# contributing a dead, zero-variance column until 2026-07-12.
+CLUSTER_TRAJ_YEARS = [1, 2, 3, 4]
 CAT_COLS = ["Sex", "Race", "Surgery_Type"]
 PREOP_NUM = [c for c in BASELINE_FEATURES if c not in CAT_COLS]
 K_RANGE = range(2, 11)                          # k swept; argmax silhouette selected
