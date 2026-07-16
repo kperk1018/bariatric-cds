@@ -364,6 +364,16 @@ with tab_traj:
     )
     st.info(" ".join(summary_parts))
 
+    # ── Quiet Regainer high-alert flag ────────────────────────────────────────
+    from src.quiet_regainer import flag_quiet_regainer
+    qr = flag_quiet_regainer(traj)
+    if qr["detected"]:
+        st.error(
+            f"🚩 **HIGH-ALERT: 'Quiet Regainer' pattern.** {qr['reason']}"
+        )
+    elif qr["peak"] is not None:
+        st.caption(f"Quiet-Regainer screen: not flagged. {qr['reason']}")
+
     # BMI milestone from predicted TBWL
     predicted_bmi_by_yr = {}
     for yr in range(1, 7):

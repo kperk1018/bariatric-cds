@@ -229,3 +229,21 @@ One line per modeling choice. This is what makes the work defensible + publishab
   Discussion, and framed as a finding: "trajectory phenotypes in this cohort are largely determined
   by procedure, sex and race." Rationale: 1B's novel contribution is the clinical tool, not a new
   phenotype definition; disclosure beats redefining a method that must stay comparable to 1A.
+- 2026-07-16  Reconciled the RACE finding against Ioanna's manuscript (Table 6 clusters + Table 2
+  stratification), as she requested. Correction: race is NOT a primary phenotype driver. Her PRIMARY
+  1A clustering uses baseline preop features only; its two female-sleeve clusters split by preop TBWL
+  (10.7% vs 11.2%), only mildly race-skewed (65% vs 57% Hispanic). Our earlier trajectory-based
+  re-clustering over-separated by race (91% Hispanic vs 98% White; "98% predictable") — an artifact
+  of a leaner 15-feature panel that let the race dummies dominate; adding predicted FML trajectories
+  did not change it. Stratified analysis (her Table 2): race associates with preop and 1-yr TBWL
+  (p<0.001) but not 4-yr (p=0.15). Corrected framing everywhere to: phenotypes are structured by
+  PROCEDURE + SEX (71% predictable), race is a secondary correlate. Deck slide 9 + fig8 relabeled.
+- 2026-07-16  Attrition is protective, not inflationary (Ioanna's new Table S9): retained yr5-6
+  patients are disproportionately Hispanic (SMD -0.43) with LOWER preop TBWL (SMD -0.35) and higher
+  fat mass — the poorer-prognosis stratum — so late-year trajectories are conservatively biased
+  downward. Added to the attrition slide notes.
+- 2026-07-16  Quiet-Regainer high-alert flag (src/quiet_regainer.py): transparent rule on the
+  predicted trajectory — peak(yr1,yr2) TBWL% >= 34 AND (peak - yr4) >= 12 pp — identifying a strong
+  early responder who quietly regains by year 4. Calibrated to the trajectory-sensitivity cluster
+  (recall ~56%, precision ~70%, flags ~21% of cohort); flagged mean path 39->31->28->24 vs
+  32->29->27->25. Surfaced in the app's Trajectory tab as a red high-alert. tests/test_quiet_regainer.py.

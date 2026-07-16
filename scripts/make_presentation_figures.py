@@ -385,8 +385,9 @@ def fig8_sensitivity(df, b, labels):
     axes[1].set_xticks(xpos); axes[1].set_xticklabels(labels_x)
     axes[1].set_ylabel("% of cluster membership predicted\nby demographics alone")
     axes[1].set_ylim(0, 100); axes[1].legend(fontsize=9)
-    axes[1].set_title("B. Are the clusters just demographics?\n(lower = more genuinely trajectory-driven)",
-                      fontsize=11)
+    axes[1].set_title("B. Procedure + sex are the drivers (71%).\nRace over-separates only in this "
+                      "lean re-fit —\n1A's own clusters (Table 6) split by preop-TBWL, not race",
+                      fontsize=9.5)
 
     # C: trajectory-only clusters -> responder gradient
     d2 = df.copy(); d2["cl"] = lab2
@@ -401,8 +402,8 @@ def fig8_sensitivity(df, b, labels):
     axes[2].set_title("C. Trajectory-shape only →\na true poor→strong responder gradient",
                       fontsize=11)
 
-    fig.suptitle("Figure 8. Sensitivity — are the phenotypes real trajectory patterns, or "
-                 "procedure × sex × race?", fontsize=13, weight="bold")
+    fig.suptitle("Figure 8. Phenotypes are structured mainly by procedure and sex; clustering on "
+                 "trajectory shape reveals the underlying responder gradient", fontsize=12.5, weight="bold")
     plt.tight_layout()
     plt.savefig(OUT / "fig8_sensitivity.png", dpi=200, bbox_inches="tight")
     plt.close()

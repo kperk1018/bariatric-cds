@@ -115,7 +115,15 @@ nothing left to learn from.
 
 WHY THIS MATTERS POLITICALLY: reviewers attacked Ioanna's models as "poorly implemented"
 while completely missing that she had openly disclosed 90% attrition. So we put it first and
-make it impossible to miss.""")
+make it impossible to miss.
+
+THE ATTRITION IS PROTECTIVE, NOT INFLATIONARY (Ioanna's new sensitivity analysis, Table S9):
+the patients who REMAIN at years 5-6 are disproportionately Hispanic (SMD -0.43), started with
+LOWER preop weight loss (SMD -0.35) and higher fat mass. Lower preop weight loss is the WORSE
+prognostic group. So if anything the late-year trajectories are conservatively biased DOWNWARD,
+not inflated. Say this if anyone claims the late results are cherry-picked: "the opposite — the
+sicker, lower-preop-loss patients are the ones who stayed, so these numbers understate, not
+overstate, the benefit." """)
 
     # 3 ── Pipeline + the 15 fields named
     s = prs.slides.add_slide(B)
@@ -286,59 +294,55 @@ essentially the same answer.
 NOW LOOK AT THE RACE ROWS ON THE HEATMAP — and go straight to the next slide before anyone else
 gets there.""")
 
-    # 9 ── The finding (reframed: a result, not a confession)
+    # 9 ── The finding (corrected after reconciling with 1A Table 6)
     s = prs.slides.add_slide(B)
-    _title(s, "Finding: the phenotypes are largely determined by procedure, sex and race",
-           "Ioanna predicted race was the missing variable — she was right. We report it, rather than wait for a reviewer to find it.")
+    _title(s, "Finding: phenotypes are structured by procedure and sex — not race",
+           "Checked against Ioanna's Table 6 and Table 2, as she asked. Procedure + sex are the drivers; race is a secondary correlate.")
     _pic(s, "fig8_sensitivity.png", 0.35, 1.5, 12.6)
     _bul(s, [
-        ("98% of phenotype membership is predictable from sex + procedure + race alone (71% without "
-         "race). The five groups are: Revision women / Hispanic sleeve women / Bypass women / White "
-         "sleeve women / Men. Bypass genuinely loses more weight — that part is real clinical signal.",
-         True, RED),
-        ("Clustering on trajectory SHAPE alone drops this to 44% (47% with race) and reveals a genuine "
-         "poor→strong responder gradient.", True, GREEN),
-        ("DECISION: the 1A-aligned clustering stays PRIMARY (comparability with manuscript 1A). "
-         "Trajectory-shape is reported as a sensitivity analysis, and the demographic dominance is "
-         "stated in the Results — not buried in the Discussion.", True, NAVY),
+        ("71% of phenotype membership is predictable from procedure + sex alone — the real structural "
+         "drivers. In 1A's own clusters (Table 6), the two female-sleeve groups differ by preop weight "
+         "loss, NOT race (65% vs 57% Hispanic).", True, RED),
+        ("Race is a secondary correlate: it tracks preop and 1-year weight loss (Table 2, p<0.001) but "
+         "NOT 4-year outcome (p=0.15). A leaner re-clustering can over-separate by race — we flag that "
+         "as feature-sensitivity, not a stable biological signal.", False, None),
+        ("Clustering on trajectory SHAPE alone drops predictability to 44% and reveals a real "
+         "poor→strong responder gradient — including a strong-early-loss group that quietly regains by "
+         "year 4: the 'Quiet Regainer', now a high-alert flag in the app.", True, GREEN),
     ], y=5.4, size=11),
-    _notes(s, """*** THE MOST IMPORTANT SLIDE. RAISE IT YOURSELF, BEFORE ANYONE ELSE. ***
+    _notes(s, """*** THE MOST IMPORTANT SLIDE — AND I CORRECTED IT AFTER CHECKING IOANNA'S TABLES. ***
 
-FRAME IT AS A RESULT, NOT A CONFESSION. Say:
-"Trajectory phenotypes in this cohort are largely determined by procedure, sex and race — 98% of
-cluster membership is predictable from those three variables alone. When we cluster on trajectory
-shape independent of demographics, a genuine responder gradient emerges."
+WHAT CHANGED: My first pass said the phenotypes were "98% procedure + sex + RACE" and called them
+Hispanic-vs-White groups. Ioanna asked me to double-check against her Table 6 (cluster demographics)
+and Table 2 (stratification). I did — and she is right: RACE IS NOT A PRIMARY DRIVER.
 
-That is a legitimate, clinically interesting, publishable statement. It is also bulletproof against
-the reviewer who would otherwise "discover" it.
+THE EVIDENCE:
+  - Her primary clustering (1A) uses BASELINE PREOP FEATURES ONLY. Its female-sleeve clusters (her
+    2 and 3) split by preop TBWL (10.7% vs 11.2%), and are only mildly race-skewed (65% vs 57%
+    Hispanic). Not a race split.
+  - My re-clustering used a leaner feature set (15 preop features + trajectories), which let the
+    race dummies dominate and produced an artificial 91%-Hispanic vs 98%-White split. That is a
+    feature-weighting artifact, not a finding. Adding more trajectory features didn't fix it;
+    it's driven by the small feature panel.
+  - Table 2 stratification: race is significant for preop and 1-yr TBWL (p<0.001) but NOT 4-yr
+    (p=0.15). So race correlates with the STARTING point, not the long-term trajectory.
 
-IOANNA PREDICTED THIS. She said: "I think race is what's happening... two of my classes are 55%
-white / 45% Hispanic and 56% Hispanic / 44% white." She asked you to add race. You did.
+SO THE HONEST, 1A-CONSISTENT FINDING (say this):
+"The phenotypes are structured mainly by procedure and sex — 71% of membership is predictable from
+those two alone. Race correlates with preoperative and early weight loss, but it does not define the
+clusters and it washes out of the 4-year outcome. When we strip demographics out and cluster on the
+weight-loss curve itself, predictability falls to 44% and a genuine responder gradient appears."
 
-THE NUMBERS:
-  sex + procedure         -> 71% predictable
-  sex + procedure + RACE  -> 98%
-  trajectory-shape only   -> 44% (47% with race)  <- barely moves, so it IS trajectory-driven
+THE QUIET REGAINER (Ioanna called this a clinical goldmine): in the trajectory-only clustering, one
+group loses strongly early then quietly regains by year 4 — the patient you'd never flag from their
+chart. It is now a high-alert flag in the app.
 
-WHAT THE FIVE CLUSTERS ACTUALLY ARE:
-  1. Revision women      2. Hispanic sleeve women (91% Hispanic)     3. Bypass women
-  4. White sleeve women (98% White)                                  5. Men
-Phenotypes 2 and 4 are the same operation and same sex — split by RACE.
+DON'T over-claim race. If asked about the Hispanic/White thing from an earlier draft: "That was an
+artifact of a reduced-feature re-clustering; against 1A's full clustering it doesn't hold, and I
+corrected it."
 
-WHY IT HAPPENS: sex, procedure and race go into the clustering as 0/1 flags alongside the
-trajectory. They separate patients so cleanly that the algorithm latches onto them and ignores the
-subtler curve shape.
-
-BE FAIR: the residual Bypass link is CLINICALLY REAL — bypass patients do lose more weight. Signal,
-not artefact.
-
-THE DECISION AND WHY (own this):
-"We keep the 1A-aligned clustering as primary so that 1B remains directly comparable to 1A, and we
-report trajectory-shape as a sensitivity analysis. This paper's contribution is the tool, not a new
-phenotype definition — so the right move is to disclose clearly rather than redefine the method."
-
-FOR IOANNA (she is mid-revision on 1A): her clusters use the same recipe and very likely share this
-property. Tell her now, collaboratively — it protects both papers.""")
+DECISION (unchanged): 1A-aligned clustering stays primary for comparability; trajectory-shape is the
+sensitivity analysis; the procedure/sex structuring is stated plainly in the Results.""")
 
     # 10 ── Mechanism + next
     s = prs.slides.add_slide(B)
