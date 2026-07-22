@@ -101,7 +101,7 @@ find it yourselves." """)
     s = prs.slides.add_slide(B)
     _title(s, "First — who do we actually still have?",
            "Read this before any performance number; it explains everything that follows")
-    _pic(s, "fig0_attrition.png", 0.75, 1.5, 11.8)
+    _pic(s, "fig0b_sankey.png", 0.35, 1.55, 12.6)
     _notes(s, """IOANNA EXPLICITLY ASKED FOR THIS SLIDE, AND FOR IT TO COME FIRST.
 
 SAY: Before I show you a single accuracy number, look at who we still have.

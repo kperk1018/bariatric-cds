@@ -75,6 +75,60 @@ def fig0_attrition(df):
     print("  fig0_attrition.png")
 
 
+def fig0b_sankey(df):
+    """Attrition as a Sankey-style flow (Ioanna asked for the manuscript's Sankey;
+    her figure wasn't in the shared files, so this reconstructs it from our data)."""
+    n0 = len(df)
+    ns = [n0] + [int(pd.to_numeric(df[TBWL_BY_YEAR[y]], errors="coerce").notna().sum())
+                 for y in range(1, 7)]
+    stages = ["Cohort"] + [f"Yr {y}" for y in range(1, 7)]
+
+    fig, ax = plt.subplots(figsize=(13.5, 5.6))
+    ax.axis("off")
+    xgap, node_w = 1.9, 0.34
+    scale = 4.0 / n0            # vertical units per patient
+    top = 4.3
+    retained_c, lost_c = "#1f77b4", "#d9d9d9"
+
+    xs = [i * xgap for i in range(len(ns))]
+    # retained band (top-aligned), lost branches peel downward
+    for i in range(len(ns) - 1):
+        x0, x1 = xs[i] + node_w, xs[i + 1]
+        h0, h1 = ns[i] * scale, ns[i + 1] * scale
+        # retained flow (top strip that narrows)
+        ax.fill_between([x0, x1], [top - h1, top - h1], [top, top],
+                        color=retained_c, alpha=0.55, lw=0)
+        # lost flow peeling off the bottom
+        lost = ns[i] - ns[i + 1]
+        if lost > 0:
+            ax.fill_between([x0, x1], [top - h0, top - h1 - lost * scale],
+                            [top - h1, top - h1], color=lost_c, alpha=0.9, lw=0)
+            ax.text((x0 + x1) / 2, top - h1 - lost * scale / 2 - 0.12,
+                    f"lost {lost}", ha="center", va="top", fontsize=8.5, color="#8a8a8a")
+    # nodes
+    for i, (x, n, s) in enumerate(zip(xs, ns, stages)):
+        h = n * scale
+        col = "#455a64" if i == 0 else (retained_c if i <= 4 else "#d62728")
+        ax.add_patch(mpatches.Rectangle((x, top - h), node_w, h, color=col))
+        ax.text(x + node_w / 2, top + 0.14, s, ha="center", va="bottom",
+                fontsize=10, weight="bold")
+        ax.text(x + node_w / 2, top - h - 0.16, f"{n}\n{n/n0*100:.0f}%", ha="center",
+                va="top", fontsize=9, weight="bold",
+                color="#d62728" if i >= 5 else "#222")
+
+    ax.set_xlim(-0.3, xs[-1] + node_w + 0.4)
+    ax.set_ylim(-1.2, top + 0.8)
+    ax.text(xs[-1] + node_w / 2, top - ns[-1] * scale - 0.95,
+            "Years 5–6:\n~10% remain", ha="center", fontsize=9.5, color="#d62728",
+            weight="bold")
+    ax.set_title("Figure 1. Patient attrition flow — 786 enrolled → 81 with year-6 data",
+                 fontsize=13, weight="bold", loc="left")
+    plt.tight_layout()
+    plt.savefig(OUT / "fig0b_sankey.png", dpi=200, bbox_inches="tight")
+    plt.close()
+    print("  fig0b_sankey.png")
+
+
 # ── 1. Pipeline ───────────────────────────────────────────────────────────────
 def fig1_pipeline():
     fig, ax = plt.subplots(figsize=(17, 3.9))
@@ -206,6 +260,14 @@ def fig3_reliability():
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(.5, -.2), ncol=3, fontsize=9)
     ax.set_title("Figure 5. Reliability gating — R² and AUC per year. The tool refuses to guess.",
                  pad=12)
+    # combined-view callout: low R2 but high AUC (Ioanna's example)
+    ax.text(3.0, -1.62,
+            "Combined view: FML year 3 has R²=0.18 (can't predict the exact %) but AUC=0.80 "
+            "(can still rank\nhigh vs low responders). When R² is low but AUC is high, the model "
+            "is useful for triage, not point estimates.",
+            ha="center", va="top", fontsize=8.8, style="italic", color="#1f4e79",
+            bbox=dict(boxstyle="round,pad=0.4", fc="#eaf2fb", ec="#1f4e79", lw=1))
+    ax.set_ylim(-2.5, 1)
     plt.tight_layout()
     plt.savefig(OUT / "fig3_reliability.png", dpi=200, bbox_inches="tight")
     plt.close()
@@ -416,6 +478,7 @@ def main():
     print("Generating figures from live pipeline...")
     df = load()
     fig0_attrition(df)
+    fig0b_sankey(df)
     fig1_pipeline()
     fig2_model_comparison()
     fig2b_rf_vs_gb()
