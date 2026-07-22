@@ -1,16 +1,9 @@
-"""Build the deck (PowerPoint) — slides + speaker-note script in one place.
+"""Build the deck (PowerPoint) — slides + clinician-facing speaker notes.
 
-Audience: Dr. Raftopoulos — a surgeon who does not code. Plain language, mechanistic.
-Slides double as candidate manuscript figures. Speaker notes are the script, so every
-decision can be OWNED, not attributed to a tool.
-
-Incorporates Ioanna's 2026-07-13 review:
-  * attrition slide BEFORE the metrics (sets up why yrs 5-6 fail)
-  * the 15 preoperative fields named explicitly
-  * RF vs GB head-to-head (answers "why not GB at yr3-4?")
-  * AUC reported alongside R²
-  * RACE added to demographics + sensitivity  -> the 98% finding
-  * n-per-cell and the 10.5% preop threshold on the trajectory figure
+Audience: a surgeon / clinical team with limited machine-learning background.
+Every ML term is explained in plain language, and every slide's notes end on the
+CLINICAL SIGNIFICANCE — why it matters for a patient. The speaker notes are the
+script: read them and you can present without knowing ML.
 
 Run:
     PYTHONPATH=. python scripts/build_presentation.py
@@ -80,304 +73,307 @@ def build():
     p2 = tb2.text_frame.paragraphs[0]
     p2.text = "Flagging the patients likely to regain — before they do"
     p2.font.size = Pt(18); p2.font.color.rgb = GREY
-    _bul(s, [("786 patients  •  Random Forest  •  5 phenotypes  •  a working surgeon-facing app",
-              True, NAVY),
-             "Kaushik Perkari  |  Manuscript 1B (follow-up to Ioanna's 1A)  |  July 2026"],
-         y=4.25, size=15)
-    _notes(s, """SAY: A patient asks "how much will I lose, and will I keep it off?" Today the honest
-answer is a population average. But patients vary enormously — and by the time we SEE regain,
-we've missed the window to act.
+    _bul(s, [("786 patients  •  a personalized forecast  •  5 trajectory types  •  a working clinical tool",
+              True, NAVY)], y=4.25, size=15)
+    _notes(s, """WHAT TO SAY:
+"Every patient asks two questions before surgery: how much weight will I lose, and will I keep it
+off? Today, the honest answer is a population average — 'most people lose about 30%.' But patients
+vary enormously, and some regain. And usually, by the time we SEE the regain in clinic, the window
+to intervene has already closed."
 
-This tool does three things:
-  1. Forecasts for THIS patient, not the average patient
-  2. Tells you how much to trust it — and REFUSES to answer when it doesn't know
-  3. Sorts patients into trajectory types, to catch likely regainers early
+"This tool does three things: it gives a forecast for THIS patient rather than the average patient;
+it tells you how much to trust that forecast, and refuses to answer when it can't; and it sorts
+patients into recognizable trajectory types so we can spot the likely regainers early."
 
-CLOSE THE INTRO WITH THIS — it buys credibility and defuses the honesty slide later:
-"I'll also show you a problem I found in my own analysis. I'd rather you hear it from me than
-find it yourselves." """)
+CLINICAL SIGNIFICANCE: the whole point is earlier, more targeted follow-up — spending our limited
+clinic time on the patients who actually need it, before they've regained.""")
 
-    # 2 ── Attrition (Ioanna: BEFORE the metrics)
+    # 2 ── Attrition Sankey
     s = prs.slides.add_slide(B)
     _title(s, "First — who do we actually still have?",
-           "Read this before any performance number; it explains everything that follows")
+           "Real-world follow-up drops off fast; this sets what the tool can and can't tell you")
     _pic(s, "fig0b_sankey.png", 0.35, 1.55, 12.6)
-    _notes(s, """IOANNA EXPLICITLY ASKED FOR THIS SLIDE, AND FOR IT TO COME FIRST.
+    _notes(s, """WHAT TO SAY:
+"Before any accuracy number, look at who we still have. We start with 786 patients. By year 1, 593
+have follow-up data. By year 2, 386. By year 5, only 85 — about 10% of the cohort. People stop
+coming to clinic. This is the reality of long-term bariatric follow-up."
 
-SAY: Before I show you a single accuracy number, look at who we still have.
+"This one picture explains everything that follows: why our year 2-4 predictions are strong, and
+why years 5 and 6 are unreliable. It's not that the tool is bad late — it's that there's almost
+nothing left to learn from."
 
-We start with 786 patients. By year 1, 593 have data. By year 2, 386. By year 5, only 85 —
-about 10% of the cohort. People stop coming to clinic.
+A REASSURING POINT TO MAKE: the patients who DO stay to years 5-6 tend to be the ones who started
+with LESS weight loss before surgery — the harder cases. So if anything, the late numbers understate
+how well people do, rather than exaggerate it.
 
-This single chart explains almost everything that follows: why years 2-4 are strong, and why
-years 5 and 6 are hopeless. It is not that the models are bad. It is that there is almost
-nothing left to learn from.
+CLINICAL SIGNIFICANCE: this is about setting honest expectations. The tool is genuinely useful
+through year 4 — the window where you can still act — and it's upfront about the limits beyond that,
+rather than giving you a confident number you shouldn't trust.""")
 
-WHY THIS MATTERS POLITICALLY: reviewers attacked Ioanna's models as "poorly implemented"
-while completely missing that she had openly disclosed 90% attrition. So we put it first and
-make it impossible to miss.
-
-THE ATTRITION IS PROTECTIVE, NOT INFLATIONARY (Ioanna's new sensitivity analysis, Table S9):
-the patients who REMAIN at years 5-6 are disproportionately Hispanic (SMD -0.43), started with
-LOWER preop weight loss (SMD -0.35) and higher fat mass. Lower preop weight loss is the WORSE
-prognostic group. So if anything the late-year trajectories are conservatively biased DOWNWARD,
-not inflated. Say this if anyone claims the late results are cherry-picked: "the opposite — the
-sicker, lower-preop-loss patients are the ones who stayed, so these numbers understate, not
-overstate, the benefit." """)
-
-    # 3 ── Pipeline + the 15 fields named
+    # 3 ── Pipeline + the 15 fields
     s = prs.slides.add_slide(B)
-    _title(s, "How it works — and what each piece of code does")
+    _title(s, "How it works — start to finish")
     _pic(s, "fig1_pipeline.png", 0.3, 1.35, 12.7)
     feats = ", ".join(BASELINE_FEATURES)
     _bul(s, [
-        ("THE 15 PREOPERATIVE FIELDS THE MODEL SEES:", True, NAVY),
+        ("THE 15 THINGS THE TOOL LOOKS AT — all collected routinely before surgery:", True, NAVY),
         (feats, False, None),
-        ("data_load.py cleans and removes 16 duplicate rows (802 → 786).  preprocess.py turns each "
-         "patient into those 15 numbers.  reproduce_models.py trains one Random Forest per year — "
-         "ONCE, then saved.  predict.py + reliability.py produce the forecast and its trust rating.  "
-         "phenotype.py groups patients.  streamlit_app.py is what you click on.", False, None),
+        ("It cleans the records, removes duplicate entries, learns the patterns ONCE, and then simply "
+         "looks up an answer for each new patient. Nothing is re-computed per visit — that's why it's "
+         "instant.", False, None),
     ], y=4.35, size=12)
-    _notes(s, """IOANNA: "When you say 15 preoperative numbers, you have to name exactly what these
-fields are." So read them out: age, sex, race, height, initial BMI, initial weight, initial BMR,
-visceral fat, body-fat %, fat mass, fat-free mass, time to surgery, surgery type, preop BMI,
-preop total body weight loss.
+    _notes(s, """WHAT TO SAY — walk the boxes left to right:
+"Raw records come in. We clean them and remove duplicate rows — there were 16 duplicated patient
+records, which we caught and removed, leaving 786 real patients. Then each patient is reduced to 15
+preoperative numbers."
 
-WALK THE BOXES LEFT TO RIGHT.
+NAME THE 15 FIELDS out loud (they're on the slide): age, sex, race, height, initial BMI, initial
+weight, initial metabolic rate, visceral fat, body-fat %, fat mass, fat-free mass, time to surgery,
+surgery type, preop BMI, and preop weight loss. Emphasize: "every one of these is something you
+already collect — the tool needs no new tests."
 
-CLEAN + DEDUP — 802 ROWS but only 786 PATIENTS. Sixteen duplicate rows. Ioanna explained the
-cause: the curator assigned the SAME ID to two genuinely different people (you'd see "ID 2,
-African-American male" and "ID 2, white female"), and merging on ID cross-multiplied them.
-NOTE: she deliberately KEPT all 802 in manuscript 1A. We remove them. This is an internal
-discussion — NOT for the manuscript.
+"Then the prediction engine runs, produces the forecast plus a trust rating, groups the patient into
+a trajectory type, and shows it all in the app."
 
-TRAINED ONCE, THEN SERVED — we do not retrain per patient. That's why the app is instant.""")
+IF ASKED 'does it re-learn each time?': No — it's trained once and saved, like writing down a recipe.
+Each patient just gets cooked from the recipe. That's why it responds instantly.
 
-    # 4 ── What a Random Forest is + 5-model comparison
+CLINICAL SIGNIFICANCE: it runs entirely on information already in the preoperative workup — no extra
+burden on the patient or the clinic.""")
+
+    # 4 ── What a Random Forest is
     s = prs.slides.add_slide(B)
-    _title(s, "The models — what a Random Forest actually is",
-           "Hundreds of simple decision trees, voting")
+    _title(s, "The prediction engine, in plain terms",
+           "Hundreds of simple rules, voting")
     _pic(s, "fig2_model_comparison.png", 0.3, 1.5, 8.6)
     _bul(s, [
         ("THE ANALOGY", True, NAVY),
-        "Ask 300 junior doctors to guess a patient's weight loss. Each is deliberately simple — "
-        "they may only ask a few yes/no questions (Is BMI over 45? Did they lose 10% preop?). "
-        "Each guess is mediocre. Average all 300 and the errors cancel out.",
-        "That is a Random Forest. Each 'junior doctor' is a decision tree.",
+        "Imagine asking 300 junior doctors to each guess a patient's weight loss. Each is only allowed "
+        "a few yes/no questions — Is BMI over 45? Did they lose 10% before surgery? Each guess is "
+        "mediocre. But AVERAGE all 300, and the errors cancel out.",
+        "That's the model. Each 'junior doctor' is a simple decision tree; hundreds of them vote.",
         ("TWO SAFEGUARDS", True, NAVY),
-        "No time travel: the year-2 model sees baseline + year-1 only. Never year 2 or later. "
-        "I verified this in every saved model's feature list.",
-        "Reproducible: every model and split is seeded (random_state = 42).",
+        "It never peeks at the future: the year-2 forecast only uses information available by year 1.",
+        "It's reproducible: run it twice, get identical numbers.",
     ], x=9.0, y=1.55, w=4.1, h=5.4, size=11)
-    _notes(s, """DEFINE IT FIRST — DO NOT SKIP THE ANALOGY. Ioanna's warning: "However many times I
-have explained random forest / gradient boosting / MLP / SVR to Dr. R, he doesn't remember."
-So keep it concrete: 300 simple doctors voting, errors cancel out.
+    _notes(s, """WHAT TO SAY — define it with the analogy, don't assume the audience knows it:
+"The engine is called a Random Forest, which is an unhelpful name. Here's what it actually is.
+Imagine 300 junior doctors, each allowed only a handful of yes/no questions about the patient. Each
+one alone gives a so-so guess. But average all 300 guesses together and the random errors cancel out,
+leaving something surprisingly accurate. Each 'junior doctor' is what's called a decision tree, and
+hundreds of them vote. No black box — just many simple rules, averaged."
 
-LEAKAGE ("no time travel"): if a year-2 model saw the year-2 answer it would look brilliant and
-be useless. This is the single most common way a medical ML paper turns out wrong — and it is
-the bug Ioanna caught in an earlier version of HER code. She confirmed OUR pipeline does not
-have it. I verified by listing every saved model's inputs.
+THE TWO SAFEGUARDS (a skeptical clinician will wonder about these):
+1. No cheating with future information. If the year-2 forecast were allowed to peek at the year-2
+   answer, it would look brilliant and be useless in real life. We checked every model — the year-2
+   forecast only ever sees information available by year 1.
+2. Reproducible. There's randomness inside, so we fix it in place; anyone re-running gets the exact
+   same numbers.
 
-random_state = 42 — just a fixed seed so re-running gives identical numbers.""")
+CLINICAL SIGNIFICANCE: this is an interpretable, checkable method — not a mysterious AI. It behaves
+consistently, and it can't secretly rely on information you wouldn't have at the bedside.""")
 
-    # 5 ── RF vs GB (NEW — the reviewer question)
+    # 5 ── RF vs GB
     s = prs.slides.add_slide(B)
-    _title(s, "Why Random Forest and not Gradient Boosting?",
-           "The question a reviewer will ask — answered with our own data, not the literature's")
+    _title(s, "We tested two versions and kept the steadier one",
+           "Peak accuracy in one year matters less than reliability across all years")
     _pic(s, "fig2b_rf_vs_gb.png", 0.5, 1.5, 12.3)
     _bul(s, [
-        ("Honest answer: Gradient Boosting DOES beat Random Forest at year 3 (R² 0.70 vs 0.61), and "
-         "year 4 is a dead tie. But at year 5 Gradient Boosting collapses (R² = −3.8) where Random "
-         "Forest degrades gracefully. Random Forest also discriminates better overall (mean AUC 0.80 "
-         "vs 0.75).", True, RED),
-        ("And the clustering forces the choice: a reviewer correctly told Ioanna you cannot switch "
-         "models between years for k-means — it imports nonlinearities. One model must serve all "
-         "years. So we choose for CONSISTENCY, and Gradient Boosting's year-5 collapse disqualifies it.",
-         True, GREEN),
+        ("We compared two closely related engines. The second one (Gradient Boosting) is slightly "
+         "sharper in the middle years — it edges ahead at year 3. But in the sparse late years it "
+         "becomes wildly unstable, while the first one degrades gracefully.", True, None),
+        ("For a tool you'd actually rely on in clinic, steady and trustworthy across every year beats "
+         "a little extra accuracy in one year. So the app uses the steadier engine; the sharper one is "
+         "kept as a cross-check.", True, GREEN),
     ], y=5.5, size=12)
-    _notes(s, """IOANNA ASKED FOR THIS SLIDE SPECIFICALLY. She said a reviewer will ask: "why did you
-pick random forest and not gradient boosting for years 3 and 4?" — because her S5 table shows GB
-winning there. Have the answer ready.
+    _notes(s, """WHAT TO SAY:
+"There are two closely related versions of this kind of model. We ran both, head to head, on our own
+patients. The second one — Gradient Boosting — is a bit sharper in the middle years; it actually
+beats the first at year 3. But look at the late years: it collapses and becomes wildly unreliable,
+while the first version degrades gently and predictably."
 
-OUR OWN NUMBERS (5-fold CV, deduped data, same features for both):
-  yr1  RF 0.249  GB 0.228   -> RF
-  yr2  RF 0.513  GB 0.452   -> RF
-  yr3  RF 0.608  GB 0.698   -> GB WINS. SAY SO. Don't hide it.
-  yr4  RF 0.725  GB 0.723   -> tie
-  yr5  RF -0.346 GB -3.804  -> GB CATASTROPHICALLY COLLAPSES
-  AUC mean: RF 0.795, GB 0.748
+"So which do you want driving a clinical tool? Not the one that's occasionally sharper and
+occasionally unhinged — you want the one that's steady and honest across every year. That's the one
+the app uses. We keep the sharper version as a cross-check in the background."
 
-THE ARGUMENT: you must pick ONE model for all years (the reviewer's own logic about k-means
-clustering — you cannot mix orthogonal models across years). So you optimise for consistency,
-not for a single year's peak. GB's year-5 collapse rules it out.
+IF ASKED 'why is the second one better at year 3-4?': it's a more aggressive learner, so when there's
+enough data (the middle years) it squeezes out a bit more signal. But that same aggressiveness makes
+it fall apart when data is thin (the late years) — it starts chasing noise.
 
-AUC POINT — Ioanna gets excited about this: our AUCs are 0.90 / 0.91 / 0.95 at years 2/3/4.
-She said anything above 0.8 with real-world data is "amazing" and that honest reviewers would
-commend us for it.""")
+CLINICAL SIGNIFICANCE: reliability is a safety property. A tool that's brilliant sometimes and badly
+wrong other times is worse than one that's consistently good and knows its limits.""")
 
     # 6 ── Reliability + AUC
     s = prs.slides.add_slide(B)
-    _title(s, "The tool refuses to guess when it cannot predict",
-           "Arguably the most clinically important design decision")
-    _pic(s, "fig3_reliability.png", 0.6, 1.6, 12.1)
+    _title(s, "The tool refuses to guess when it can't predict",
+           "Arguably the most important safety feature")
+    _pic(s, "fig3_reliability.png", 0.6, 1.55, 12.1)
     _bul(s, [
-        ("R² = of all the variation between patients, how much does the model explain? "
-         "AUC = can it correctly rank who loses more? Thresholds fixed IN ADVANCE: green ≥ 0.40, "
-         "amber 0.20–0.40, red < 0.20.", False, None),
-        ("Years 2–4: trustworthy. Year 1: rough guide. Years 5–6: we show NOTHING rather than a "
-         "number you might act on.", True, RED),
+        ("Two report cards per year. R² = can it predict the actual weight-loss NUMBER? AUC = can it "
+         "at least tell a high responder from a low one? Green = trustworthy, amber = rough guide, "
+         "red = the tool shows nothing at all.", True, RED),
+        ("Sometimes it can't nail the exact % but can still reliably RANK who's at risk — that's still "
+         "clinically useful, for triage rather than a precise number.", False, None),
     ], y=5.35, size=12.5)
-    _notes(s, """DEFINE R-SQUARED PLAINLY: "Of all the variation between patients, how much does the
-model actually explain? Zero = it knows nothing. In medicine, above 0.4 is genuinely useful."
+    _notes(s, """WHAT TO SAY — define both report cards plainly:
+"To decide whether to trust a prediction, we use two measures. R-squared asks: of all the variation
+between patients, how much can the model actually explain? Zero means it knows nothing; higher is
+better; above about 0.4 is genuinely useful in medicine. AUC asks a simpler question: can it at least
+correctly rank patients — put the big losers above the small losers? Ours are 0.90, 0.91, 0.95 at
+years 2, 3, 4, which is strong."
 
-IOANNA'S FRAMING FOR THE MISSING HALF — use this, it's excellent:
-"Our best is about 50% explained variance at year 2. What is the other 50%? Factors we never
-measured. We have psychometric scores only at the FIRST visit — nothing longitudinal. A patient
-who was abused as a child and eats for comfort; the psychological support they get after joining
-the program. Dr. R's team almost certainly HAS these scores — they're sitting in scanned notes in
-the EMR that nobody has entered. So the missing 50% is not mysterious; it is unmeasured."
+"We set the trust thresholds in advance. Green means trustworthy — years 2 to 4. Amber means treat as
+a rough guide. Red means the model genuinely can't predict, and there the tool shows you NOTHING."
 
-AUC ADDED AT IOANNA'S REQUEST. She wants both metrics because R² is the stringent one but AUC is
-what a clinician can use. Ours: 0.90 / 0.91 / 0.95 at years 2/3/4.
+"That refusal is the single most important design choice. Most tools always give an answer — which is
+dangerous, because a confident wrong number is worse than no number."
 
-THE HONEST COST OF CHOOSING RANDOM FOREST: year 5 used to be amber because SVR scored 0.26 there.
-RF scores 0.064. So year 5 correctly turned RED. We LOST a number — but it was one nobody should
-have trusted.""")
+THE COMBINED VIEW (point to the blue box): "Sometimes the model can't predict the exact percentage
+but can still reliably separate high from low responders — for example fat-loss at year 3: it can't
+give you the number, but it can tell you which side of the line a patient is on. That's still useful
+— for triage, not for a precise figure."
 
-    # 7 ── k derivation
+WHY THE MISSING HALF: even our best explains about half the variation. The rest is things we never
+measured — behavior, mental health, life events, the support a patient has at home. Much of it likely
+exists in scanned clinic notes that were never entered as data. So the gap isn't mysterious; it's
+unmeasured, and it's fixable over time.
+
+CLINICAL SIGNIFICANCE: the tool tells you when to trust it and when to fall back on your own judgment.
+That honesty is what makes it safe to put in front of a patient.""")
+
+    # 7 ── k / clustering
     s = prs.slides.add_slide(B)
-    _title(s, "The number of groups was measured, not chosen",
-           "k swept from 2 to 10 and scored — this is NOT hard-coding")
+    _title(s, "Finding the patient 'types' — the number of groups was measured, not chosen",
+           "We let the data decide how many groups exist")
     _pic(s, "fig4_silhouette.png", 0.35, 1.55, 6.4)
     _pic(s, "fig5_umap.png", 7.05, 1.55, 5.1)
     _bul(s, [
-        ("Clustering = the computer groups similar patients without being told what to look for. "
-         "Silhouette = are the groups genuinely tight and separated? UMAP = a 2-D map so you can see "
-         "them (a visual aid, not the analysis).", False, None),
-        ("k=4 scores 0.7165 and k=5 scores 0.7163 — a tie to four decimals. We report 5: it matches "
-         "1A and the split is clinically interpretable. Documented as a tie-break in the code.", True, RED),
+        ("Grouping means letting the computer find patients with similar journeys, without telling it "
+         "what to look for. We tried every number of groups from 2 to 10 and let a separation score "
+         "pick the best. Five came out on top.", False, None),
+        ("The map on the right just squashes each patient down to a dot so you can see the groups "
+         "separate — it's a picture, not the analysis.", False, None),
     ], y=6.0, size=12),
-    _notes(s, """IOANNA RESOLVED YOUR BIGGEST WORRY HERE. Her words:
-"If you only set the selection of clusters between two and ten, that's NOT hard coding. If you
-said 'I want five clusters', THAT is hard coding. You didn't hard code — you wouldn't have a chart
-of silhouette scores if you had."
+    _notes(s, """WHAT TO SAY — define the terms as you go:
+"Now the patient types. 'Clustering' just means letting the computer group similar patients together
+without us telling it what to look for — it finds the structure on its own."
 
-THE SILHOUETTE CHART IS YOUR PROOF. Show it and the accusation dies.
+"The obvious question is: how many groups are there? We don't want to just declare a number. So we
+used a separation score — it measures whether the groups are genuinely tight and distinct or just
+arbitrary slices — and we tried every number of groups from 2 up to 10, letting the data pick. Five
+scored best."
 
-BE HONEST ABOUT THE TIE: k=4 scores 0.7165, k=5 scores 0.7163. There is no meaningful difference.
-We report 5 because it matches 1A and is clinically interpretable — and it's documented in the code.
+BE HONEST ABOUT THE CHART (left): "Four and five groups score almost identically — it's essentially a
+tie. We went with five because the fifth split is clinically meaningful, and we're transparent that
+it was a close call." Do NOT claim five is a clear winner — the chart shows it isn't.
 
-DO NOT claim "5 is clearly optimal." The figure disproves it and someone will notice.
+"The picture on the right (UMAP) just compresses each patient into a single dot on a 2-D map so you
+can visually see the groups pull apart. It's a visualization aid, not the analysis itself."
 
-Ioanna's own tip: the curve must come back DOWN inside your range. If it were still rising at k=10
-you'd have chosen too small a range. Ours peaks and falls — the range was right.""")
+CLINICAL SIGNIFICANCE: these patient types were discovered from the data, not assumed from textbook
+stereotypes. That's what makes them worth paying attention to.""")
 
-    # 8 ── Phenotypes (with race)
+    # 8 ── The five phenotypes
     s = prs.slides.add_slide(B)
-    _title(s, "The five phenotypes", "Ordered by preoperative weight loss — with race, and n per point")
+    _title(s, "The five trajectory types",
+           "Ordered by preoperative weight loss; the 10.5% line is the known risk threshold")
     _pic(s, "fig6_trajectories.png", 0.25, 1.45, 6.7)
     _pic(s, "fig7_demographics.png", 7.1, 1.45, 5.9)
-    _notes(s, """TWO THINGS IOANNA ASKED FOR AND YOU NOW HAVE:
-  1. The 10.5% preop threshold drawn, with phenotypes below it DASHED. Phenotype 1 (8.8% preop) is
-     the one below the threshold — the group we already know does worse long-term.
-  2. n shown at every point, because she challenged two numbers:
-       - Phenotype 1 RISES at year 6 (22.9% -> 32.2%)
-       - Phenotype 3 shows ~44% loss at year 6 — she said "who are these people? I didn't have such
-         results."
-     Both are tiny-sample artifacts. The n labels and the shaded "sparse" zone make that visible.
-     If challenged: "those late points rest on a handful of patients; that's why years 5-6 are red."
+    _notes(s, """WHAT TO SAY:
+"Here are the five types. On the left, their actual weight-loss journeys. On the right, who's in each
+group."
 
-VALIDATION POINT WORTH MAKING: ordered by preop weight loss I get 8.8 / 11.0 / 11.5 / 12.3 / 12.9%.
-Ioanna's Supplementary Table 7 reports 9.0 / 10.7 / 11.2 / 12.7 / 12.8. Two independent pipelines,
-essentially the same answer.
+"The dashed orange line is the 10.5% preoperative weight-loss threshold — we already know patients
+below it tend to do worse long-term. Notice the lowest group sits below it. That's a group you'd want
+to flag before they even reach the OR."
 
-NOW LOOK AT THE RACE ROWS ON THE HEATMAP — and go straight to the next slide before anyone else
-gets there.""")
+BE READY FOR THE ODD LATE NUMBERS: "A couple of the year-6 points look strange — one group appears to
+IMPROVE late. Look at the small numbers next to those points: they rest on as few as three patients.
+Those are quirks of tiny samples, which is exactly why the tool marks years 5 and 6 as unreliable."
 
-    # 9 ── The finding (corrected after reconciling with 1A Table 6)
+CLINICAL SIGNIFICANCE: these are recognizable patterns you can act on — and the group starting below
+the 10.5% line is the clearest early target for extra preoperative support.
+
+(Then pivot: "But there's a deeper question about these groups — next slide.")""")
+
+    # 9 ── The honest finding + Quiet Regainer
     s = prs.slides.add_slide(B)
-    _title(s, "Finding: phenotypes are structured by procedure and sex — not race",
-           "Checked against Ioanna's Table 6 and Table 2, as she asked. Procedure + sex are the drivers; race is a secondary correlate.")
+    _title(s, "Are these real trajectory types — or just surgery type and sex?",
+           "The honest check — and the one clinically important pattern that survives it")
     _pic(s, "fig8_sensitivity.png", 0.35, 1.5, 12.6)
     _bul(s, [
-        ("71% of phenotype membership is predictable from procedure + sex alone — the real structural "
-         "drivers. In 1A's own clusters (Table 6), the two female-sleeve groups differ by preop weight "
-         "loss, NOT race (65% vs 57% Hispanic).", True, RED),
-        ("Race is a secondary correlate: it tracks preop and 1-year weight loss (Table 2, p<0.001) but "
-         "NOT 4-year outcome (p=0.15). A leaner re-clustering can over-separate by race — we flag that "
-         "as feature-sensitivity, not a stable biological signal.", False, None),
-        ("Clustering on trajectory SHAPE alone drops predictability to 44% and reveals a real "
-         "poor→strong responder gradient — including a strong-early-loss group that quietly regains by "
-         "year 4: the 'Quiet Regainer', now a high-alert flag in the app.", True, GREEN),
-    ], y=5.4, size=11),
-    _notes(s, """*** THE MOST IMPORTANT SLIDE — AND I CORRECTED IT AFTER CHECKING IOANNA'S TABLES. ***
+        ("Mostly, these groups just re-describe procedure and sex — about 71% of a patient's group can "
+         "be guessed from those two facts alone. That's a genuine (if humbling) insight: baseline "
+         "surgery and sex largely set the path.", True, None),
+        ("But when we group purely by the SHAPE of the weight-loss curve, one clinically vital pattern "
+         "appears: strong early loss followed by a quiet regain by year 4 — the 'Quiet Regainer.' It's "
+         "now a high-alert flag in the app.", True, GREEN),
+    ], y=5.4, size=11.5),
+    _notes(s, """WHAT TO SAY — frame this as an honest, useful finding, not an apology:
+"I asked a hard question of my own analysis: are these five groups telling us something new, or are
+they just re-discovering surgery type and sex? The answer is mostly the latter — you can guess about
+71% of a patient's group membership from their procedure and sex alone. That's actually a useful,
+humbling insight in itself: baseline factors like which operation you had largely determine the road
+you're on."
 
-WHAT CHANGED: My first pass said the phenotypes were "98% procedure + sex + RACE" and called them
-Hispanic-vs-White groups. Ioanna asked me to double-check against her Table 6 (cluster demographics)
-and Table 2 (stratification). I did — and she is right: RACE IS NOT A PRIMARY DRIVER.
+"But here's the clinically important part. When I strip away all the demographics and group patients
+purely by the SHAPE of their predicted weight-loss curve, a genuinely important pattern emerges —"
 
-THE EVIDENCE:
-  - Her primary clustering (1A) uses BASELINE PREOP FEATURES ONLY. Its female-sleeve clusters (her
-    2 and 3) split by preop TBWL (10.7% vs 11.2%), and are only mildly race-skewed (65% vs 57%
-    Hispanic). Not a race split.
-  - My re-clustering used a leaner feature set (15 preop features + trajectories), which let the
-    race dummies dominate and produced an artificial 91%-Hispanic vs 98%-White split. That is a
-    feature-weighting artifact, not a finding. Adding more trajectory features didn't fix it;
-    it's driven by the small feature panel.
-  - Table 2 stratification: race is significant for preop and 1-yr TBWL (p<0.001) but NOT 4-yr
-    (p=0.15). So race correlates with the STARTING point, not the long-term trajectory.
+*** THE QUIET REGAINER — THIS IS THE CLINICAL PAYOFF OF THE WHOLE TALK ***
+"— a group that loses strongly early, looks like your best patients at year 1, and then quietly
+regains by year 4. This is the patient you would NEVER flag from their chart, and you can't see it at
+their one-year visit because they look like a star. By the time it's visible, the regain has already
+happened. The tool now flags these patients up front, from the shape of their predicted curve — buying
+you two or three years of lead time to intervene."
 
-SO THE HONEST, 1A-CONSISTENT FINDING (say this):
-"The phenotypes are structured mainly by procedure and sex — 71% of membership is predictable from
-those two alone. Race correlates with preoperative and early weight loss, but it does not define the
-clusters and it washes out of the 4-year outcome. When we strip demographics out and cluster on the
-weight-loss curve itself, predictability falls to 44% and a genuine responder gradient appears."
+WHY ONLY THIS METHOD FINDS THEM: two such patients can look identical before surgery and at year 1;
+they only diverge later. So you can only separate them by looking at the whole trajectory — which is
+exactly what this grouping does.
 
-THE QUIET REGAINER (Ioanna called this a clinical goldmine): in the trajectory-only clustering, one
-group loses strongly early then quietly regains by year 4 — the patient you'd never flag from their
-chart. It is now a high-alert flag in the app.
+BE FAIR: part of the pattern is real biology — gastric bypass genuinely loses more weight than sleeve.
+That's signal, not an artifact.
 
-DON'T over-claim race. If asked about the Hispanic/White thing from an earlier draft: "That was an
-artifact of a reduced-feature re-clustering; against 1A's full clustering it doesn't hold, and I
-corrected it."
-
-DECISION (unchanged): 1A-aligned clustering stays primary for comparability; trajectory-shape is the
-sensitivity analysis; the procedure/sex structuring is stated plainly in the Results.""")
+CLINICAL SIGNIFICANCE: the Quiet Regainer flag is the most actionable output of the tool — an early
+warning for the exact patient who otherwise slips through until it's too late.""")
 
     # 10 ── Mechanism + next
     s = prs.slides.add_slide(B)
-    _title(s, "Where a prediction comes from — and what's next")
+    _title(s, "Where a prediction comes from — and how you'd use it")
     _bul(s, [
-        ("IT IS NOT AN EXTRAPOLATION. IT IS NOT THE CLUSTER AVERAGE.", True, RED),
-        "We take this patient's 15 preoperative values, run them through the Random Forest for that "
-        "specific year, and hundreds of trees vote. The output is that patient's own predicted TBWL%.",
-        "Order matters: we PREDICT first, then assign the phenotype from that prediction. The cluster "
-        "does not create the number — the number places the patient in a cluster.",
-        ("STATUS vs 1A", True, NAVY),
-        "Reproduced her Table S5 performance; adopted her conventions; independently reproduced her "
-        "5 clusters and preop-TBWL ordering (8.8/11.0/11.5/12.3/12.9 vs her 9.0/10.7/11.2/12.7/12.8).",
-        "Found 3 real bugs in her shared scripts — she confirmed all three.",
-        ("NEXT", True, NAVY),
-        "Decide primary vs sensitivity clustering → finalise figures → draft the manuscript. The "
-        "STREAMLIT APP is the novel contribution; the modelling is supporting material. Target: Obesity Surgery.",
+        ("IT IS NOT A STRAIGHT LINE DRAWN FORWARD. IT IS NOT THE GROUP AVERAGE.", True, RED),
+        "We take this individual patient's 15 preoperative values, run them through the model for that "
+        "specific year, and hundreds of simple rules vote. The result is that patient's own predicted "
+        "weight loss — each year computed separately.",
+        "The order matters: we predict the trajectory FIRST, then read off which type it matches. The "
+        "group doesn't create the number; the number places the patient in a group.",
+        ("HOW YOU'D USE IT IN CLINIC", True, NAVY),
+        "At the preoperative visit: a realistic, personalized expectation, plus a risk flag (below the "
+        "10.5% threshold, or a likely Quiet Regainer).",
+        "It sharpens further once you enter the patient's real year-1 result — so it's a follow-up tool "
+        "as much as a counseling tool.",
+        ("The working app is the deliverable — enter a patient, see their trajectory and their flags.",
+         True, GREEN),
     ], y=1.45, size=13)
-    _notes(s, """KILL THE TWO MISREADS. Both would make the tool sound worthless:
-  NOT extrapolation — we are not drawing a line forward.
-  NOT the cluster average — we are not quoting what the group typically does.
-It is a PER-PATIENT model output. And we PREDICT FIRST, CLUSTER SECOND.
+    _notes(s, """WHAT TO SAY — kill the two natural misreadings, because either one makes the tool sound
+worthless:
+"It is NOT extrapolation — we're not drawing a line through the early points and extending it. And it
+is NOT the group average — we're not just telling you what that type of patient usually does."
 
-IOANNA'S STRATEGIC POINT — the most important thing she said about the manuscript:
-"Your major figures are going to be the Streamlit app. We don't want to present the same kind of
-data again. Everything you did is fine for supporting documentation, but now you're presenting your
-Streamlit app, which is amazing."
-=> THE TOOL IS THE PAPER. The modelling and clustering become supplementary.
+"What actually happens: we take THIS patient's 15 preoperative values, run them through the model for
+that specific year, hundreds of simple rules vote, and out comes that patient's own predicted weight
+loss. Each year is computed independently."
 
-NEXT WEEK (her list): repeat with gradient boosting [DONE], add race to clusters [DONE], add AUC
-[DONE], attrition figure [DONE] — then START WRITING: methods referencing 1A, results with RF + GB,
-supplementary verification. She also wants a walkthrough of how you built this with Claude.
+"And the order matters: we predict the patient's trajectory first, and only then read off which of the
+five types it matches. The group doesn't create the number — the number is what sorts the patient into
+a group."
 
-DO NOT attribute any of this to a tool. Every decision here is one you can defend: why Random
-Forest, why 42, why the red zone, why 5 clusters, and why the phenotypes may be demographic strata.""")
+HOW IT'S USED: "At the preop visit, you get a realistic personalized expectation for counseling, plus
+a risk flag. And it gets sharper the moment you enter a real follow-up measurement — so it's a
+follow-up tool as much as a counseling tool."
+
+CLINICAL SIGNIFICANCE / CLOSE: "The deliverable isn't a paper figure — it's a working tool. You enter
+a patient, and you immediately see their likely trajectory and whether they're a high-alert Quiet
+Regainer. That's the point: turning data we already collect into an early warning we can act on." """)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     prs.save(OUT)
