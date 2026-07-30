@@ -257,3 +257,10 @@ One line per modeling choice. This is what makes the work defensible + publishab
   -> female sleeve (10.2) -> bypass sustained (12.2, 40->38) -> male-leaning strong-early-then-regain
   (14.0, 39->24). The last is the Quiet Regainer sub-phenotype. Real-data assigner agreement 0.945.
   Silhouette curve still computed + reported for transparency.
+- 2026-07-30  Cluster count switched k=4 -> k=5 to match the 1A manuscript's five phenotypes (per
+  Ioanna's 2026-07-22 call: "make sure your clusters align" — align to the 5-cluster manuscript;
+  k=4 was only the fallback if 5 wouldn't align). Trajectory-only clustering at k=5 reproduces her
+  five types: revision-leaning (preop 8.6) -> female sleeve (9.4) -> female sleeve (11.5) -> bypass
+  (12.1, 100% bypass) -> male-leaning highest-preop (14.5, 29% male). Composition differs coarsely
+  from hers (my revision/male clusters less pure — my prediction model differs from 1A's), which she
+  said is acceptable ("exact percentages don't matter"). Quiet Regainer = phenotype 5 (39->23).

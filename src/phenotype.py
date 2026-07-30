@@ -48,9 +48,9 @@ CLUSTER_TRAJ_YEARS = [1, 2, 3, 4]
 CAT_COLS = ["Sex", "Race", "Surgery_Type"]
 PREOP_NUM = [c for c in BASELINE_FEATURES if c not in CAT_COLS]
 K_RANGE = range(2, 11)                          # k swept for the silhouette curve (reported)
-CLUSTER_K = 4                                    # clinically-informed / 1A-aligned cluster count
-                                                #   (coalesces 1A's near-identical female-sleeve
-                                                #   clusters 2 & 3; see choose_k + METHODS_LOG)
+CLUSTER_K = 5                                    # match the 1A manuscript's 5 phenotypes
+                                                #   (revision → 2 female sleeves → bypass →
+                                                #   male-leaning); see choose_k + METHODS_LOG
 UMAP_KW = dict(n_components=2, random_state=SEED, n_neighbors=8, min_dist=0.15)
 KMEANS_KW = dict(n_init=10, random_state=SEED)
 _MODEL_PATH = ARTIFACTS / "phenotype_kmeans.joblib"

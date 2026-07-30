@@ -249,7 +249,7 @@ That honesty is what makes it safe to put in front of a patient.""")
     _bul(s, [
         ("Grouping means letting the computer find patients with similar weight-loss journeys — using "
          "ONLY the predicted trajectory, not their demographics or surgery type. We swept every group "
-         "count from 2 to 10 and use four clinically meaningful trajectory types.", False, None),
+         "count from 2 to 10 and use five trajectory types, matching the established analysis.", False, None),
         ("The map on the right just squashes each patient down to a dot so you can see the groups "
          "separate — it's a picture, not the analysis.", False, None),
     ], y=6.0, size=12),
@@ -259,9 +259,9 @@ sex, race, or surgery type. The computer groups patients only by their predicted
 later notice about who's in each group is a discovery, not something we told it to find."
 
 "How many groups? We swept from 2 up to 10 and looked at a separation score. Mathematically the
-cleanest split is just 2 big groups, but that's too coarse to be clinically useful — so we use four
-trajectory types, which give the recognizable ladder from worst to best responders. We're transparent
-that four is a clinically-informed choice, shown on the curve."
+cleanest split is just 2 big groups, but that's too coarse to be clinically useful — so we use five
+trajectory types, matching the established analysis and giving the recognizable ladder from worst to
+best responders. We're transparent that five is a clinically-informed choice, shown on the curve."
 
 "The picture on the right just compresses each patient to a dot on a 2-D map so you can see the groups
 pull apart. It's a visualization aid, not the analysis itself."
@@ -269,14 +269,14 @@ pull apart. It's a visualization aid, not the analysis itself."
 CLINICAL SIGNIFICANCE: because the groups come from the trajectories alone, they capture how a patient
 actually does over time — not a stereotype based on their chart.""")
 
-    # 8 ── The four trajectory types (descriptive composition)
+    # 8 ── The five trajectory types (descriptive composition)
     s = prs.slides.add_slide(B)
-    _title(s, "The four trajectory types",
+    _title(s, "The five trajectory types",
            "Groups come from the curves; who's in each is described afterward")
     _pic(s, "fig6_trajectories.png", 0.25, 1.45, 6.7)
     _pic(s, "fig7_demographics.png", 7.1, 1.45, 5.9)
     _notes(s, """WHAT TO SAY:
-"Here are the four types. On the left, their weight-loss journeys, ordered from the worst responders
+"Here are the five types. On the left, their weight-loss journeys, ordered from the worst responders
 to the best. On the right, a description of who ended up in each group — remember, none of this was an
 input; it's what we found after grouping by trajectory alone."
 
