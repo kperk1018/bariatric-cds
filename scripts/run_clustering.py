@@ -29,8 +29,10 @@ def main():
         print(f"{k:>2} : {s:.4f}{tag}")
 
     if bundle["k"] != argmax_k:
-        print(f"\nSelected k={bundle['k']} (1A manuscript) — within {sil[argmax_k]-sil[bundle['k']]:.4f} "
-              f"of the silhouette argmax k={argmax_k} (a tie); see phenotype.choose_k.")
+        print(f"\nUsing k={bundle['k']} — clinically-informed / 1A-aligned. Bare silhouette peaks at "
+              f"k={argmax_k} ({sil[argmax_k]:.3f}) but that is too coarse to be clinically useful; "
+              f"k={bundle['k']} ({sil[bundle['k']]:.3f}) gives the recognizable phenotype ladder. See "
+              f"phenotype.choose_k / METHODS_LOG.")
     else:
         print(f"\nAuto-selected k={bundle['k']} (silhouette argmax) on {bundle['n_train']} patients.")
     print("\nPer-cluster mean ACTUAL TBWL% by year (ordered by ascending Preop_TBWL):")

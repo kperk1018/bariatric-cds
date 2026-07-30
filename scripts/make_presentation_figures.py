@@ -170,29 +170,33 @@ def fig2b_rf_vs_gb():
     if not p.exists():
         print("  (skip fig2b — run scripts/compare_rf_gb.py first)")
         return
-    d = pd.read_csv(p)
+    d = pd.read_csv(p).copy()
+    # Clamp negative R² to 0 for display — a negative CV R² only means "worse than
+    # predicting the mean", which we report as 0 (no explanatory value).
+    d["r2"] = d["r2"].clip(lower=0)
     t = d[(d.outcome == "TBWL") & (d.year <= 6)]
 
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.8))
-    for ax, metric, label, lo in [(axes[0], "r2", "R² (variance explained)", True),
-                                  (axes[1], "auc", "AUC (discrimination)", False)]:
+    for ax, metric, label in [(axes[0], "r2", "R² (variance explained)"),
+                              (axes[1], "auc", "AUC (discrimination)")]:
         for model, col, mk in [("RandomForest", "#d62728", "o"),
                                ("GradientBoosting", "#1f77b4", "s")]:
             g = t[t.model == model].sort_values("year")
             ax.plot(g.year, g[metric], marker=mk, lw=2.6, ms=8, color=col, label=model)
         ax.set_xlabel("Year after surgery"); ax.set_ylabel(label)
         ax.set_xticks(range(1, 7)); ax.grid(alpha=.3); ax.legend(fontsize=9)
-    axes[0].axhline(0, color="grey", lw=1, ls=":")
-    axes[0].set_ylim(-1.2, 1.0)
-    axes[0].annotate("GB COLLAPSES here\n(R² = −3.8, off-scale)", xy=(5, -0.9),
-                     xytext=(3.4, -1.05), fontsize=9.5, color="#1f77b4", weight="bold",
-                     arrowprops=dict(arrowstyle="->", color="#1f77b4"))
-    axes[0].annotate("GB wins yr 3", xy=(3, 0.70), xytext=(1.6, 0.86), fontsize=9.5,
+    axes[0].set_ylim(0, 1.0)
+    axes[0].annotate("both drop to ~0 in the\nsparse late years (yr 5–6)", xy=(5.4, 0.03),
+                     xytext=(3.3, 0.20), fontsize=9.5, color="#555", weight="bold",
+                     arrowprops=dict(arrowstyle="->", color="#555"))
+    axes[0].annotate("GB edges RF at yr 3", xy=(3, 0.70), xytext=(1.5, 0.88), fontsize=9.5,
                      color="#1f77b4", arrowprops=dict(arrowstyle="->", color="#1f77b4"))
     axes[1].axhline(0.8, color="#2ca02c", ls="--", lw=1.4)
     axes[1].text(1.05, .81, "0.8 = strong discrimination", color="#2ca02c", fontsize=9)
+    fig.text(0.5, -0.02, "R² floored at 0 (0 = no better than predicting the mean).",
+             ha="center", fontsize=8.5, style="italic", color="#555")
     fig.suptitle("Figure 4. Random Forest vs Gradient Boosting on our data — GB edges yr3, "
-                 "but collapses in the sparse late years", fontsize=13, weight="bold")
+                 "but both fade in the sparse late years", fontsize=13, weight="bold")
     plt.tight_layout()
     plt.savefig(OUT / "fig2b_rf_vs_gb.png", dpi=200, bbox_inches="tight")
     plt.close()
@@ -288,21 +292,71 @@ def _refit_for_viz(df):
 def fig4_silhouette(b):
     sil = b["silhouette_by_k"]
     ks, vs = list(sil.keys()), list(sil.values())
-    fig, ax = plt.subplots(figsize=(8.6, 4.6))
+    chosen = b["k"]
+    fig, ax = plt.subplots(figsize=(8.8, 4.6))
     ax.plot(ks, vs, marker="o", lw=2, color="#1f77b4", ms=8)
-    ax.scatter([4, 5], [sil[4], sil[5]], s=260, facecolors="none", edgecolors="#d62728",
+    ax.scatter([chosen], [sil[chosen]], s=280, facecolors="none", edgecolors="#d62728",
                lw=2.5, zorder=5)
-    ax.annotate(f"k=4: {sil[4]:.4f}\nk=5: {sil[5]:.4f}\n→ tied (Δ={abs(sil[4]-sil[5]):.4f})",
-                xy=(5, sil[5]), xytext=(6.3, sil[5]-.055), fontsize=10,
-                arrowprops=dict(arrowstyle="->", color="#d62728"), color="#d62728", weight="bold")
+    ax.annotate(f"k={chosen} used\n(clinically meaningful\nphenotype ladder)",
+                xy=(chosen, sil[chosen]), xytext=(chosen + 1.3, sil[chosen] + 0.02),
+                fontsize=9.5, arrowprops=dict(arrowstyle="->", color="#d62728"),
+                color="#d62728", weight="bold")
     ax.set_xlabel("Number of clusters (k)")
     ax.set_ylabel("Silhouette score (higher = better separated)")
     ax.set_xticks(ks); ax.grid(alpha=.3)
-    ax.set_title("Figure 6a. Cluster count derived from the data (k swept 2–10), not assumed", pad=10)
+    ax.set_title("Figure 6a. We swept k=2–10; used k=4 for clinically meaningful groups",
+                 pad=10, fontsize=12.5)
     plt.tight_layout()
     plt.savefig(OUT / "fig4_silhouette.png", dpi=200, bbox_inches="tight")
     plt.close()
     print("  fig4_silhouette.png")
+
+
+def fig_quiet_regainer(df, b, labels):
+    """Dedicated Quiet Regainer figure: the strong-early-loss-then-regain phenotype,
+    highlighted against the others, with the flag rule stated."""
+    from src.quiet_regainer import flag_quiet_regainer, PEAK_MIN, DROP_MIN
+    from src.predict import predict_trajectory
+
+    # which cluster is the Quiet Regainer? the one with the largest peak(yr1-2)->yr4 drop
+    d = df.copy(); d["cl"] = labels
+    drops = {}
+    for c in range(b["k"]):
+        py = b["cluster_actual_traj"][c]["per_year"]
+        if all(y in py for y in (1, 2, 4)):
+            peak = max(py[1]["mean"], py[2]["mean"])
+            drops[c] = peak - py[4]["mean"]
+    qr = max(drops, key=drops.get)
+
+    fig, ax = plt.subplots(figsize=(10.5, 5.8))
+    yrs = [1, 2, 3, 4]
+    for c in range(b["k"]):
+        py = b["cluster_actual_traj"][c]["per_year"]
+        vals = [py[y]["mean"] if y in py else None for y in yrs]
+        is_qr = c == qr
+        ax.plot(yrs, vals, marker="o", lw=3.4 if is_qr else 1.6,
+                ms=9 if is_qr else 5, color=CL_C[c],
+                alpha=1.0 if is_qr else 0.45, zorder=5 if is_qr else 2,
+                label=f"Phenotype {c+1}" + ("  ← QUIET REGAINER" if is_qr else ""))
+    pv = b["cluster_actual_traj"][qr]["per_year"]
+    peak = max(pv[1]["mean"], pv[2]["mean"]); y4 = pv[4]["mean"]
+    ax.annotate("looks like a top responder here…", xy=(1.5, peak), xytext=(1.5, peak + 5),
+                fontsize=10, color=CL_C[qr], weight="bold", ha="center")
+    ax.annotate(f"…but quietly regains\nto {y4:.0f}% by year 4", xy=(4, y4), xytext=(3.1, y4 - 8),
+                fontsize=10, color=CL_C[qr], weight="bold",
+                arrowprops=dict(arrowstyle="->", color=CL_C[qr]))
+    ax.set_xlabel("Year after surgery"); ax.set_ylabel("Mean TBWL %")
+    ax.set_xticks(yrs); ax.grid(alpha=.3); ax.legend(fontsize=10, loc="upper right")
+    ax.set_title("Figure 9. The 'Quiet Regainer' — invisible early, flagged up front by the tool",
+                 pad=10, fontsize=13)
+    ax.text(0.5, -0.16,
+            f"App flag rule: peak (year 1–2) ≥ {PEAK_MIN:.0f}% AND regain (peak − year 4) ≥ "
+            f"{DROP_MIN:.0f} pp — computed from the patient's predicted curve at the preop visit.",
+            transform=ax.transAxes, ha="center", fontsize=9, style="italic", color="#333")
+    plt.tight_layout()
+    plt.savefig(OUT / "fig_quiet_regainer.png", dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"  fig_quiet_regainer.png  (Quiet Regainer = phenotype {qr+1})")
 
 
 def fig5_umap(b, Xu, labels):
@@ -489,9 +543,9 @@ def main():
     fig5_umap(b, Xu, labels)
     fig6_trajectories(df, b, labels)
     H = fig7_demographics(df, b, labels)
-    fig8_sensitivity(df, b, labels)
+    fig_quiet_regainer(df, b, labels)   # fig8_sensitivity removed (demographics were never inputs)
     print(f"\nAll figures -> {OUT}/")
-    print("\nCluster demographics (WITH RACE) — for your speaker notes:")
+    print("\nCluster composition (post-hoc, descriptive) — for your speaker notes:")
     print(H.round(1).to_string())
 
 

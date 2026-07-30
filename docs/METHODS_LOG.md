@@ -247,3 +247,13 @@ One line per modeling choice. This is what makes the work defensible + publishab
   early responder who quietly regains by year 4. Calibrated to the trajectory-sensitivity cluster
   (recall ~56%, precision ~70%, flags ~21% of cohort); flagged mean path 39->31->28->24 vs
   32->29->27->25. Surfaced in the app's Trajectory tab as a red high-alert. tests/test_quiet_regainer.py.
+- 2026-07-29  Clustering corrected to trajectory-only (per Ioanna, 2026-07-22 call). phenotype.
+  _assemble_features now uses ONLY the predicted TBWL trajectory (yrs 1-4); demographics and preop
+  features are NO LONGER inputs (they are characterized post-hoc). This removes the spurious
+  race-split clusters that arose when demographic dummies were fed in. Cluster count set to
+  CLUSTER_K=4 (clinically-informed / 1A-aligned): bare silhouette on the trajectory-only space
+  peaks at k=2 (0.576, too coarse); k=4 (0.508) coalesces 1A's two near-identical female-sleeve
+  clusters and yields the recognizable ladder — worst/revision-leaning (preop 8.4, TBWL 24.5->14.0)
+  -> female sleeve (10.2) -> bypass sustained (12.2, 40->38) -> male-leaning strong-early-then-regain
+  (14.0, 39->24). The last is the Quiet Regainer sub-phenotype. Real-data assigner agreement 0.945.
+  Silhouette curve still computed + reported for transparency.

@@ -47,9 +47,10 @@ from src.config import ARTIFACTS, BASELINE_FEATURES, TBWL_BY_YEAR, SEED
 CLUSTER_TRAJ_YEARS = [1, 2, 3, 4]
 CAT_COLS = ["Sex", "Race", "Surgery_Type"]
 PREOP_NUM = [c for c in BASELINE_FEATURES if c not in CAT_COLS]
-K_RANGE = range(2, 11)                          # k swept; argmax silhouette selected
-MANUSCRIPT_K = 5                                # 1A reports 5 clusters (Ioanna, S7)
-K_TIE = 0.02                                    # silhouette gap counted as "tied"
+K_RANGE = range(2, 11)                          # k swept for the silhouette curve (reported)
+CLUSTER_K = 4                                    # clinically-informed / 1A-aligned cluster count
+                                                #   (coalesces 1A's near-identical female-sleeve
+                                                #   clusters 2 & 3; see choose_k + METHODS_LOG)
 UMAP_KW = dict(n_components=2, random_state=SEED, n_neighbors=8, min_dist=0.15)
 KMEANS_KW = dict(n_init=10, random_state=SEED)
 _MODEL_PATH = ARTIFACTS / "phenotype_kmeans.joblib"
@@ -60,12 +61,14 @@ def _traj_col(y: int) -> str:
 
 
 def _assemble_features(preop_df: pd.DataFrame, traj_df: pd.DataFrame) -> pd.DataFrame:
-    """Build the clustering matrix: OHE(drop_first) preop + predicted TBWL trajectory."""
-    enc = pd.get_dummies(preop_df[CAT_COLS].astype(str), columns=CAT_COLS,
-                         drop_first=True, dtype=int)
-    num = preop_df[PREOP_NUM].apply(pd.to_numeric, errors="coerce").reset_index(drop=True)
-    out = pd.concat([num, enc.reset_index(drop=True), traj_df.reset_index(drop=True)], axis=1)
-    return out
+    """Build the clustering matrix: the PREDICTED TBWL TRAJECTORY ONLY.
+
+    Deliberately excludes demographics (Sex/Race/Surgery_Type) and preop features. 1A
+    clusters on trajectory shape alone; demographics are characterized POST-HOC (who
+    lands in each cluster), never fed in. Feeding them in previously produced spurious
+    race-split clusters. `preop_df` is accepted for signature compatibility but unused.
+    """
+    return traj_df.reset_index(drop=True)
 
 
 def _predicted_trajectories(df: pd.DataFrame) -> pd.DataFrame:
@@ -96,19 +99,17 @@ def select_k(X: np.ndarray) -> tuple[int, dict[int, float]]:
 
 
 def choose_k(sil: dict[int, float]) -> int:
-    """Silhouette-selected k, with a tie-break toward the 1A manuscript k.
+    """Return the clinically-informed cluster count (CLUSTER_K).
 
-    The silhouette peak and MANUSCRIPT_K are frequently within noise of each other
-    (on the RF trajectories, k=4 and k=5 differ by ~0.0002). When MANUSCRIPT_K is
-    within K_TIE of the argmax we report MANUSCRIPT_K, so 1B matches 1A's 5 clusters
-    without hard-coding — Ioanna confirmed 5 is the intended count and that fixing it
-    is acceptable. When the data clearly prefers a different k (> K_TIE better), that
-    k wins and the divergence is surfaced.
+    The full silhouette curve is still computed and stored for transparency, but the
+    trajectory-only space favours a coarse k=2 that is not clinically useful. We use
+    CLUSTER_K=4 for clinical interpretability and alignment with the established 1A
+    phenotype structure — it coalesces the two near-identical female-sleeve groups (1A's
+    clusters 2 & 3) and yields the recognizable ladder: worst/revision-leaning →
+    female sleeve → bypass → male-leaning. Documented in docs/METHODS_LOG.md; `sil`
+    is accepted so callers can report where CLUSTER_K sits on the curve.
     """
-    argmax_k = max(sil, key=sil.get)
-    if MANUSCRIPT_K in sil and (sil[argmax_k] - sil[MANUSCRIPT_K]) <= K_TIE:
-        return MANUSCRIPT_K
-    return argmax_k
+    return CLUSTER_K
 
 
 def fit_phenotypes(df: pd.DataFrame, save: bool = True) -> dict:

@@ -177,15 +177,14 @@ consistently, and it can't secretly rely on information you wouldn't have at the
     s = prs.slides.add_slide(B)
     _title(s, "We tested two versions and kept the steadier one",
            "Peak accuracy in one year matters less than reliability across all years")
-    _pic(s, "fig2b_rf_vs_gb.png", 0.5, 1.5, 12.3)
+    _pic(s, "fig2b_rf_vs_gb.png", 0.5, 1.4, 10.4)
     _bul(s, [
-        ("We compared two closely related engines. The second one (Gradient Boosting) is slightly "
-         "sharper in the middle years — it edges ahead at year 3. But in the sparse late years it "
-         "becomes wildly unstable, while the first one degrades gracefully.", True, None),
-        ("For a tool you'd actually rely on in clinic, steady and trustworthy across every year beats "
-         "a little extra accuracy in one year. So the app uses the steadier engine; the sharper one is "
-         "kept as a cross-check.", True, GREEN),
-    ], y=5.5, size=12)
+        ("Random Forest (used) — R²:  yr1 0.25 · yr2 0.51 · yr3 0.61 · yr4 0.73", True, NAVY),
+        ("Random Forest (used) — AUC: yr1 0.74 · yr2 0.90 · yr3 0.91 · yr4 0.95", True, NAVY),
+        ("Gradient Boosting edges ahead at year 3, but fades in the sparse late years; "
+         "Random Forest stays steadier across all years, so the app uses it and keeps GB as a "
+         "cross-check.", False, None),
+    ], x=0.5, y=5.55, w=12.3, size=12)
     _notes(s, """WHAT TO SAY:
 "There are two closely related versions of this kind of model. We ran both, head to head, on our own
 patients. The second one — Gradient Boosting — is a bit sharper in the middle years; it actually
@@ -243,98 +242,95 @@ That honesty is what makes it safe to put in front of a patient.""")
 
     # 7 ── k / clustering
     s = prs.slides.add_slide(B)
-    _title(s, "Finding the patient 'types' — the number of groups was measured, not chosen",
-           "We let the data decide how many groups exist")
+    _title(s, "Finding the patient 'types' — grouped by their weight-loss journey",
+           "The computer groups patients purely by the shape of their predicted curve")
     _pic(s, "fig4_silhouette.png", 0.35, 1.55, 6.4)
     _pic(s, "fig5_umap.png", 7.05, 1.55, 5.1)
     _bul(s, [
-        ("Grouping means letting the computer find patients with similar journeys, without telling it "
-         "what to look for. We tried every number of groups from 2 to 10 and let a separation score "
-         "pick the best. Five came out on top.", False, None),
+        ("Grouping means letting the computer find patients with similar weight-loss journeys — using "
+         "ONLY the predicted trajectory, not their demographics or surgery type. We swept every group "
+         "count from 2 to 10 and use four clinically meaningful trajectory types.", False, None),
         ("The map on the right just squashes each patient down to a dot so you can see the groups "
          "separate — it's a picture, not the analysis.", False, None),
     ], y=6.0, size=12),
     _notes(s, """WHAT TO SAY — define the terms as you go:
-"Now the patient types. 'Clustering' just means letting the computer group similar patients together
-without us telling it what to look for — it finds the structure on its own."
+"These patient types come purely from the SHAPE of the weight-loss journey — we do NOT feed in age,
+sex, race, or surgery type. The computer groups patients only by their predicted curves. Anything we
+later notice about who's in each group is a discovery, not something we told it to find."
 
-"The obvious question is: how many groups are there? We don't want to just declare a number. So we
-used a separation score — it measures whether the groups are genuinely tight and distinct or just
-arbitrary slices — and we tried every number of groups from 2 up to 10, letting the data pick. Five
-scored best."
+"How many groups? We swept from 2 up to 10 and looked at a separation score. Mathematically the
+cleanest split is just 2 big groups, but that's too coarse to be clinically useful — so we use four
+trajectory types, which give the recognizable ladder from worst to best responders. We're transparent
+that four is a clinically-informed choice, shown on the curve."
 
-BE HONEST ABOUT THE CHART (left): "Four and five groups score almost identically — it's essentially a
-tie. We went with five because the fifth split is clinically meaningful, and we're transparent that
-it was a close call." Do NOT claim five is a clear winner — the chart shows it isn't.
+"The picture on the right just compresses each patient to a dot on a 2-D map so you can see the groups
+pull apart. It's a visualization aid, not the analysis itself."
 
-"The picture on the right (UMAP) just compresses each patient into a single dot on a 2-D map so you
-can visually see the groups pull apart. It's a visualization aid, not the analysis itself."
+CLINICAL SIGNIFICANCE: because the groups come from the trajectories alone, they capture how a patient
+actually does over time — not a stereotype based on their chart.""")
 
-CLINICAL SIGNIFICANCE: these patient types were discovered from the data, not assumed from textbook
-stereotypes. That's what makes them worth paying attention to.""")
-
-    # 8 ── The five phenotypes
+    # 8 ── The four trajectory types (descriptive composition)
     s = prs.slides.add_slide(B)
-    _title(s, "The five trajectory types",
-           "Ordered by preoperative weight loss; the 10.5% line is the known risk threshold")
+    _title(s, "The four trajectory types",
+           "Groups come from the curves; who's in each is described afterward")
     _pic(s, "fig6_trajectories.png", 0.25, 1.45, 6.7)
     _pic(s, "fig7_demographics.png", 7.1, 1.45, 5.9)
     _notes(s, """WHAT TO SAY:
-"Here are the five types. On the left, their actual weight-loss journeys. On the right, who's in each
-group."
+"Here are the four types. On the left, their weight-loss journeys, ordered from the worst responders
+to the best. On the right, a description of who ended up in each group — remember, none of this was an
+input; it's what we found after grouping by trajectory alone."
 
-"The dashed orange line is the 10.5% preoperative weight-loss threshold — we already know patients
-below it tend to do worse long-term. Notice the lowest group sits below it. That's a group you'd want
-to flag before they even reach the OR."
+"Reading the ladder: the lowest group starts below the 10.5% preop weight-loss line — the level we
+already know predicts worse long-term outcomes — and stays lowest. The best group are the gastric
+bypass patients, who lose the most and hold it."
 
-BE READY FOR THE ODD LATE NUMBERS: "A couple of the year-6 points look strange — one group appears to
-IMPROVE late. Look at the small numbers next to those points: they rest on as few as three patients.
-Those are quirks of tiny samples, which is exactly why the tool marks years 5 and 6 as unreliable."
+WHAT THE COMPOSITION SHOWS (describe, don't over-claim): the groups line up mainly with preoperative
+weight loss and procedure. Race is mixed across the groups — it is NOT what separates them. Keep this
+descriptive; do not frame it as 'the clusters are demographics.'
 
-CLINICAL SIGNIFICANCE: these are recognizable patterns you can act on — and the group starting below
-the 10.5% line is the clearest early target for extra preoperative support.
+BE READY FOR ODD LATE NUMBERS: a couple of year-6 points rest on as few as 3 patients (labeled on the
+figure) — quirks of tiny late samples, which is why years 5-6 are marked unreliable.
 
-(Then pivot: "But there's a deeper question about these groups — next slide.")""")
+CLINICAL SIGNIFICANCE: recognizable patterns you can act on — the group below the 10.5% line is the
+clearest early target for extra preoperative support.
 
-    # 9 ── The honest finding + Quiet Regainer
+(Then pivot: "One of these journeys hides a patient worth flagging — next slide.")""")
+
+    # 9 ── The Quiet Regainer (the clinical payoff)
     s = prs.slides.add_slide(B)
-    _title(s, "Are these real trajectory types — or just surgery type and sex?",
-           "The honest check — and the one clinically important pattern that survives it")
-    _pic(s, "fig8_sensitivity.png", 0.35, 1.5, 12.6)
+    _title(s, "The 'Quiet Regainer' — the patient you'd otherwise miss",
+           "A trajectory type that looks like a success early, then quietly regains")
+    _pic(s, "fig_quiet_regainer.png", 0.9, 1.5, 11.5)
     _bul(s, [
-        ("Mostly, these groups just re-describe procedure and sex — about 71% of a patient's group can "
-         "be guessed from those two facts alone. That's a genuine (if humbling) insight: baseline "
-         "surgery and sex largely set the path.", True, None),
-        ("But when we group purely by the SHAPE of the weight-loss curve, one clinically vital pattern "
-         "appears: strong early loss followed by a quiet regain by year 4 — the 'Quiet Regainer.' It's "
-         "now a high-alert flag in the app.", True, GREEN),
-    ], y=5.4, size=11.5),
-    _notes(s, """WHAT TO SAY — frame this as an honest, useful finding, not an apology:
-"I asked a hard question of my own analysis: are these five groups telling us something new, or are
-they just re-discovering surgery type and sex? The answer is mostly the latter — you can guess about
-71% of a patient's group membership from their procedure and sex alone. That's actually a useful,
-humbling insight in itself: baseline factors like which operation you had largely determine the road
-you're on."
+        ("One trajectory type loses strongly early — looks like your best patients at year 1 — then "
+         "quietly regains by year 4. You can't see it from the chart or the one-year visit; by the time "
+         "it shows, the regain has happened.", True, RED),
+        ("The tool flags this pattern UP FRONT from the predicted curve — buying two to three years of "
+         "lead time to intervene. It's a built-in high-alert flag in the app.", True, GREEN),
+    ], y=5.55, size=12),
+    _notes(s, """*** THE CLINICAL PAYOFF OF THE WHOLE TALK ***
 
-"But here's the clinically important part. When I strip away all the demographics and group patients
-purely by the SHAPE of their predicted weight-loss curve, a genuinely important pattern emerges —"
+WHAT TO SAY:
+"Among the trajectory types, one is clinically special. This group loses strongly early — at year 1
+they look like your best patients, right up there with the top responders. But then they quietly
+regain, sliding back down by year 4."
 
-*** THE QUIET REGAINER — THIS IS THE CLINICAL PAYOFF OF THE WHOLE TALK ***
-"— a group that loses strongly early, looks like your best patients at year 1, and then quietly
-regains by year 4. This is the patient you would NEVER flag from their chart, and you can't see it at
-their one-year visit because they look like a star. By the time it's visible, the regain has already
-happened. The tool now flags these patients up front, from the shape of their predicted curve — buying
-you two or three years of lead time to intervene."
+"This is the patient you would never flag from their chart, and you can't catch it at the one-year
+visit because they look like a star. By the time the regain is visible, it's already happened."
 
-WHY ONLY THIS METHOD FINDS THEM: two such patients can look identical before surgery and at year 1;
-they only diverge later. So you can only separate them by looking at the whole trajectory — which is
-exactly what this grouping does.
+"Because the tool works from the SHAPE of the predicted curve, it can flag these patients up front —
+at the preop visit — giving you two or three years of lead time to intervene. It's a built-in
+high-alert flag in the app."
 
-BE FAIR: part of the pattern is real biology — gastric bypass genuinely loses more weight than sleeve.
-That's signal, not an artifact.
+HOW IT'S DEFINED (if asked): a simple, transparent rule on the predicted curve — a strong early peak
+(≥34% by year 1–2) followed by a meaningful regain (≥12 percentage points down by year 4). No black
+box; you can see exactly why a patient is flagged.
 
-CLINICAL SIGNIFICANCE: the Quiet Regainer flag is the most actionable output of the tool — an early
-warning for the exact patient who otherwise slips through until it's too late.""")
+WHY ONLY THE TRAJECTORY VIEW FINDS THEM: two such patients can look identical before surgery and at
+year 1 — they only diverge later. You can only separate them by looking at the whole journey.
+
+CLINICAL SIGNIFICANCE: this is the single most actionable output of the tool — an early warning for
+the exact patient who otherwise slips through until it's too late.""")
 
     # 10 ── Mechanism + next
     s = prs.slides.add_slide(B)
